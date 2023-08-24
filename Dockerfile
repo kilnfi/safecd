@@ -4,4 +4,4 @@ COPY . /app
 WORKDIR /app
 RUN yarn
 
-ENTRYPOINT [ "node", "/app/dist/index.js" ]
+ENTRYPOINT [ "node", "/app/dist/index.js", "sync" ]
