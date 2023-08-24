@@ -4,9 +4,6 @@ inputs:
   rpc:
     description: 'Ethereum RPC url'
     required: true
-  dryRun:
-    description: 'Dry run'
-    default: "false"
   upload:
     description: 'Dry run'
     default: "false"
@@ -15,5 +12,4 @@ runs:
   image: 'Dockerfile'
   env:
     RPC: ${{ inputs.rpc }}
-    DRY_RUN: ${{ inputs.dryRun }}
     UPLOAD: ${{ inputs.upload }}
