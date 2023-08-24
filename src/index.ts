@@ -26,9 +26,9 @@ function validateGlobalConfig(config: any): GlobalConfig {
 }
 
 program
-	.name('string-util')
-	.description('CLI to some JavaScript string utilities')
-	.version('0.8.0');
+	.name('safecd')
+	.description('Reconcile git repository with safes')
+	.version('1.0.0');
 
 const rpcOption = new Option("--rpc <char>", "ethereum rpc endpoint").env("RPC");
 rpcOption.mandatory = true;
