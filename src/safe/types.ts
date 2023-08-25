@@ -5,40 +5,40 @@ export interface Address {
 }
 
 export interface Safe extends Address {
-	type: "safe";
+	type: 'safe';
 	description?: string;
 }
 
 export const validateSafe = (file: string, safe: any): Safe => {
 	if (!safe.address) {
-		throw new Error(`Missing safe address in ${file}`)
+		throw new Error(`Missing safe address in ${file}`);
 	}
 	if (!safe.name) {
-		throw new Error(`Missing safe name in ${file}`)
+		throw new Error(`Missing safe name in ${file}`);
 	}
-	safe.type = "safe";
-	return safe as Safe
-}
+	safe.type = 'safe';
+	return safe as Safe;
+};
 
 export const validatePopulatedSafe = (file: string, safe: any): PopulatedSafe => {
 	if (!safe.address) {
-		throw new Error(`Missing safe address in ${file}`)
+		throw new Error(`Missing safe address in ${file}`);
 	}
 	if (!safe.name) {
-		throw new Error(`Missing safe name in ${file}`)
+		throw new Error(`Missing safe name in ${file}`);
 	}
 	if (!safe.owners) {
-		throw new Error(`Missing safe owners in ${file}`)
+		throw new Error(`Missing safe owners in ${file}`);
 	}
 	if (!safe.delegates) {
-		throw new Error(`Missing safe delegates in ${file}`)
+		throw new Error(`Missing safe delegates in ${file}`);
 	}
 	if (!safe.threshold) {
-		throw new Error(`Missing safe threshold in ${file}`)
+		throw new Error(`Missing safe threshold in ${file}`);
 	}
-	safe.type = "safe";
-	return safe as PopulatedSafe
-}
+	safe.type = 'safe';
+	return safe as PopulatedSafe;
+};
 
 export interface Delegate {
 	delegate: string;
@@ -55,6 +55,6 @@ export interface PopulatedSafe extends Safe {
 }
 
 export interface EOA extends Address {
-	type: "eoa";
+	type: 'eoa';
 	description?: string;
 }

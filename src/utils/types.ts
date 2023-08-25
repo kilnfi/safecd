@@ -1,6 +1,6 @@
-import SafeApiKit from "@safe-global/api-kit";
-import { ethers } from "ethers";
-import { CacheFS } from "../fs/cacheFs";
+import SafeApiKit from '@safe-global/api-kit';
+import { ethers } from 'ethers';
+import { CacheFS } from '../fs/cacheFs';
 
 export interface WriteOperation {
 	file: string;

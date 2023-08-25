@@ -7,9 +7,13 @@ inputs:
   upload:
     description: 'Dry run'
     default: "false"
+outputs:
+  hasChanged:
+    description: "Wether some changes occured during sync"
 runs:
   using: 'docker'
   image: 'Dockerfile'
   env:
+    CI: true
     RPC: ${{ inputs.rpc }}
     UPLOAD: ${{ inputs.upload }}
