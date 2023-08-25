@@ -155,7 +155,7 @@ program
 			})
 		);
 		writeFileSync(
-			`./safes/${options.safe}`,
+			`./safes/${options.safe}.yaml`,
 			YAML.stringify({
 				address: options.safe,
 				name: options.safe,

@@ -16,7 +16,24 @@ function hasFinalizedForNonce(txs: SafeMultisigTransactionListResponse['results'
 	return false;
 }
 
+async function cleanupTransactions(scdk: SafeCDKit): Promise<void> {
+	if (existsSync('./transactions')) {
+		const transactions = readdirSync('./transactions');
+		for (const transaction of transactions) {
+			const transactionPath = resolve('./transactions', transaction);
+			if (existsSync(transactionPath)) {
+				const txs = readdirSync(transactionPath);
+				for (const tx of txs) {
+					const txPath = resolve(transactionPath, tx);
+					scdk.fs.remove(txPath);
+				}
+			}
+		}
+	}
+}
+
 export async function syncSafes(scdk: SafeCDKit): Promise<void> {
+	await cleanupTransactions(scdk);
 	const safes = readdirSync('./safes');
 	for (const safeConfig of safes) {
 		const safeConfigContent = scdk.fs.read(`./safes/${safeConfig}`);
@@ -192,12 +209,6 @@ async function syncSafe(scdk: SafeCDKit, safe: Safe, path: string): Promise<Addr
 		version: requestedSafe.version
 	};
 	const transactions = await syncSafeTransactions(populatedSafe, scdk);
-	if (existsSync(`./transactions/${utils.getAddress(safe.address)}`)) {
-		const currentTxs = readdirSync(`./transactions/${utils.getAddress(safe.address)}`);
-		for (const tx of currentTxs) {
-			scdk.fs.remove(`./transactions/${utils.getAddress(safe.address)}/${tx}`);
-		}
-	}
 	for (const tx of transactions) {
 		if (!tx.trusted) {
 			continue;
@@ -207,7 +218,7 @@ async function syncSafe(scdk: SafeCDKit, safe: Safe, path: string): Promise<Addr
 		}
 		const txYaml = yamlToString(tx);
 		scdk.fs.write(
-			`./transactions/${utils.getAddress(safe.address)}/${tx.nonce.toString().padStart(5, '0')}.${tx.safeTxHash}${
+			`./transactions/${safe.name}/${tx.nonce.toString().padStart(5, '0')}.${tx.safeTxHash}${
 				tx.transactionHash === null ? '.pending.' : '.'
 			}yaml`,
 			txYaml
