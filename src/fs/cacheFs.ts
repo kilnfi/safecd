@@ -74,7 +74,7 @@ export class CacheFS {
 			writeFileSync('COMMIT_MSG', COMMIT_MSG, { encoding: 'utf8' });
 			if (process.env.CI === 'true') {
 				await exec(`echo "hasChanges=true" >> $GITHUB_OUTPUT`);
-				console.log("writting ci output variable")
+				console.log('writting ci output variable');
 			}
 		} else if (existsSync('COMMIT_MSG')) {
 			unlinkSync('COMMIT_MSG');

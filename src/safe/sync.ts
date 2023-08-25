@@ -199,6 +199,9 @@ async function syncSafe(scdk: SafeCDKit, safe: Safe, path: string): Promise<Addr
 		}
 	}
 	for (const tx of transactions) {
+		if (!tx.trusted) {
+			continue;
+		}
 		if (tx.transactionHash === null && hasFinalizedForNonce(transactions, tx.nonce)) {
 			continue;
 		}
