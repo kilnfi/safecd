@@ -105,7 +105,9 @@ export class CacheFS {
 function formatManifestToMarkdown(path: string, manifest: Manifest): string {
 	return `
 	
-## ${path}
+## \`${path}\`
+
+<details>
 
 ### Simulation Output
 
@@ -115,22 +117,23 @@ ${manifest.simulation_output}
 
 ### Simulation Transactions
 
-\`\`\`
+\`\`\`yaml
 ${YAML.stringify(manifest.simulation_transactions)}
 \`\`\`
 
 ### Safe Transaction
 
-\`\`\`
+\`\`\`yaml
 ${YAML.stringify(manifest.safe_transaction)}
 \`\`\`
 
 ### Safe Estimation
 
-\`\`\`
+\`\`\`yaml
 ${YAML.stringify(manifest.safe_estimation)}
 \`\`\`
 
+</details>
 `;
 }
 
