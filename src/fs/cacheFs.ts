@@ -1,5 +1,5 @@
 var gitDiff = require('git-diff');
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { dirname, relative, resolve } from 'path';
 import { promisify } from 'util';
 const exec = promisify(require('child_process').exec);
@@ -107,6 +107,9 @@ function gatherProposalManifestsInDir(path: string): string[] {
 	for (const element of elements) {
 		if (element.endsWith('.proposal.manifest.yaml')) {
 			manifests.push(relative(resolve('.'), resolve(path, element)));
+		}
+		if (statSync(resolve(path, element)).isDirectory()) {
+			manifests = [...manifests, ...gatherProposalManifestsInDir(resolve(path, element))];
 		}
 	}
 	return manifests;
