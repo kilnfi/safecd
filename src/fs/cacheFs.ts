@@ -80,10 +80,12 @@ export class CacheFS {
 			unlinkSync('COMMIT_MSG');
 		}
 		if (process.env.CI === 'true') {
+			console.log("looking for proposal manifests in './script'");
 			const proposalManifests = gatherProposalManifests();
 			if (proposalManifests.length > 0) {
 				let content = '';
 				for (const proposalManifest of proposalManifests) {
+					console.log(`  formatting ${proposalManifest}`);
 					const proposalManifestContent = readFileSync(proposalManifest, { encoding: 'utf8' });
 					content += `${proposalManifest}:\n${proposalManifestContent}\n`;
 				}
