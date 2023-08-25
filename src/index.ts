@@ -66,6 +66,9 @@ program
 		console.log();
 
 		const pks = process.env.PRIVATE_KEYS?.split(',') || [];
+		if (process.env.CI === 'true') {
+			console.log(`  ci=true`);
+		}
 		console.log(`  rpc=${options.rpc}`);
 		console.log(`  dryRun=${options.dryRun}`);
 		console.log(`  upload=${options.upload}`);
