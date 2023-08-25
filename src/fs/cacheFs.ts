@@ -92,7 +92,7 @@ export class CacheFS {
 						proposalManifest,
 						YAML.parse(readFileSync(proposalManifest, { encoding: 'utf8' }))
 					);
-					content += `${proposalManifest}:\n${proposalManifestContent}\n`;
+					content += `${proposalManifestContent}`;
 				}
 				await exec(`echo "hasPrComment=true" >> $GITHUB_OUTPUT`);
 				writeFileSync('PR_COMMENT', content, { encoding: 'utf8' });
@@ -104,25 +104,34 @@ export class CacheFS {
 
 function formatManifestToMarkdown(path: string, manifest: Manifest): string {
 	return `
-	## ${path}
-	### Simulation Output
-	\`\`\`
-	${manifest.simulation_output}
-	\`\`\`
-	### Simulation Transactions
-	\`\`\`
-	${YAML.stringify(manifest.simulation_transactions)}
-	\`\`\`
-	### Safe Transaction
-	\`\`\`
-	${YAML.stringify(manifest.safe_transaction)}
-	\`\`\`
-	### Safe Estimation
-	\`\`\`
-	${YAML.stringify(manifest.safe_estimation)}
-	\`\`\`
+	
+## ${path}
 
-	`;
+### Simulation Output
+
+\`\`\`
+${manifest.simulation_output}
+\`\`\`
+
+### Simulation Transactions
+
+\`\`\`
+${YAML.stringify(manifest.simulation_transactions)}
+\`\`\`
+
+### Safe Transaction
+
+\`\`\`
+${YAML.stringify(manifest.safe_transaction)}
+\`\`\`
+
+### Safe Estimation
+
+\`\`\`
+${YAML.stringify(manifest.safe_estimation)}
+\`\`\`
+
+`;
 }
 
 function gatherProposalManifests(): string[] {
