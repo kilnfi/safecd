@@ -4,9 +4,6 @@ inputs:
   rpc:
     description: 'Ethereum RPC url'
     required: true
-  upload:
-    description: 'Dry run'
-    default: "false"
 outputs:
   hasChanges:
     description: "Wether some changes occured during sync"
@@ -16,4 +13,3 @@ runs:
   env:
     CI: true
     RPC: ${{ inputs.rpc }}
-    UPLOAD: ${{ inputs.upload }}
