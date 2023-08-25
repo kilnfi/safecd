@@ -69,13 +69,13 @@ async function getSafeByName(scdk: SafeCDKit, name: string): Promise<PopulatedSa
 	return null;
 }
 
-function getDelegateByLabel(safe: PopulatedSafe, label: string): string | null {
+function delegateExists(safe: PopulatedSafe, address: string): boolean {
 	for (const delegate of safe.delegates) {
-		if (delegate.label === label) {
-			return utils.getAddress(delegate.delegate);
+		if (utils.getAddress(delegate.delegate) === utils.getAddress(address)) {
+			return true;
 		}
 	}
-	return null;
+	return false;
 }
 
 export interface ForgeTransaction {
@@ -212,10 +212,10 @@ async function syncProposal(
 		let hasProposed = false;
 
 		if (scdk.shouldWrite && scdk.shouldUpload) {
-			const delegateAddress = getDelegateByLabel(safe, proposalConfig.delegate);
-			if (delegateAddress === null) {
+			if (!delegateExists(safe, proposalConfig.delegate)) {
 				throw new Error(`Delegate ${proposalConfig.delegate} not found in safe ${safeName}`);
 			}
+			const delegateAddress = utils.getAddress(proposalConfig.delegate);
 
 			const signer = scdk.signers[delegateAddress];
 			if (signer === undefined) {

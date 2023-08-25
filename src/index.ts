@@ -187,7 +187,7 @@ program
 
 		console.log(
 			await sak.addSafeDelegate({
-				label: 'safecd',
+				label: options.label,
 				safeAddress: options.safe,
 				delegateAddress: options.delegate,
 				delegatorAddress: options.delegator,
