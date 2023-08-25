@@ -103,9 +103,10 @@ export class CacheFS {
 }
 
 function formatManifestToMarkdown(path: string, manifest: Manifest): string {
-	return `
+	if (manifest.error === undefined) {
+		return `
 	
-## \`${path}\`
+## \`${path}\` ✅
 
 ### Safe Transaction
 
@@ -137,6 +138,29 @@ ${YAML.stringify(manifest.safe_estimation)}
 
 </details>
 `;
+	} else {
+		return `
+	
+## \`${path}\` ❌
+
+\`\`\`
+${manifest.error}
+\`\`\`
+
+### Simulation Output
+
+\`\`\`
+${manifest.simulation_output}
+\`\`\`
+
+### Simulation Error Output
+
+\`\`\`
+${manifest.simulation_error_output}
+\`\`\`
+
+`;
+	}
 }
 
 function gatherProposalManifests(): string[] {
