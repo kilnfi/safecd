@@ -2,6 +2,8 @@ var gitDiff = require('git-diff');
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { dirname, relative, resolve } from 'path';
 import { promisify } from 'util';
+import YAML from 'yaml';
+import { Manifest } from '../proposal/sync';
 const exec = promisify(require('child_process').exec);
 export class CacheFS {
 	private edits: { [key: string]: string | null } = {};
@@ -83,10 +85,13 @@ export class CacheFS {
 			console.log("looking for proposal manifests in './script'");
 			const proposalManifests = gatherProposalManifests();
 			if (proposalManifests.length > 0) {
-				let content = '';
+				let content = '# Proposal Simulation Manifests\n\n';
 				for (const proposalManifest of proposalManifests) {
 					console.log(`  formatting ${proposalManifest}`);
-					const proposalManifestContent = readFileSync(proposalManifest, { encoding: 'utf8' });
+					const proposalManifestContent = formatManifestToMarkdown(
+						proposalManifest,
+						YAML.parse(readFileSync(proposalManifest, { encoding: 'utf8' }))
+					);
 					content += `${proposalManifest}:\n${proposalManifestContent}\n`;
 				}
 				await exec(`echo "hasPrComment=true" >> $GITHUB_OUTPUT`);
@@ -95,6 +100,29 @@ export class CacheFS {
 			}
 		}
 	}
+}
+
+function formatManifestToMarkdown(path: string, manifest: Manifest): string {
+	return `
+	## ${path}
+	### Simulation Output
+	\`\`\`
+	${manifest.simulation_output}
+	\`\`\`
+	### Simulation Transactions
+	\`\`\`
+	${YAML.stringify(manifest.simulation_transactions)}
+	\`\`\`
+	### Safe Transaction
+	\`\`\`
+	${YAML.stringify(manifest.safe_transaction)}
+	\`\`\`
+	### Safe Estimation
+	\`\`\`
+	${YAML.stringify(manifest.safe_estimation)}
+	\`\`\`
+
+	`;
 }
 
 function gatherProposalManifests(): string[] {
