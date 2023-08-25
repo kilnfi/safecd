@@ -7,6 +7,8 @@ inputs:
 outputs:
   hasChanges:
     description: "Wether some changes occured during sync"
+  hasPrComment:
+    description: "Wether a PR comment was generated"
 runs:
   using: 'docker'
   image: 'Dockerfile'

@@ -1,5 +1,5 @@
 var gitDiff = require('git-diff');
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { dirname, relative, resolve } from 'path';
 import { promisify } from 'util';
 const exec = promisify(require('child_process').exec);
@@ -74,10 +74,38 @@ export class CacheFS {
 			writeFileSync('COMMIT_MSG', COMMIT_MSG, { encoding: 'utf8' });
 			if (process.env.CI === 'true') {
 				await exec(`echo "hasChanges=true" >> $GITHUB_OUTPUT`);
-				console.log('writting ci output variable');
+				console.log('writting "hasChanged=true" ci output variable');
 			}
 		} else if (existsSync('COMMIT_MSG')) {
 			unlinkSync('COMMIT_MSG');
 		}
+		if (process.env.CI === 'true') {
+			const proposalManifests = gatherProposalManifests();
+			if (proposalManifests.length > 0) {
+				let content = '';
+				for (const proposalManifest of proposalManifests) {
+					const proposalManifestContent = readFileSync(proposalManifest, { encoding: 'utf8' });
+					content += `${proposalManifest}:\n${proposalManifestContent}\n`;
+				}
+				await exec(`echo "hasPrComment=true" >> $GITHUB_OUTPUT`);
+				writeFileSync('PR_COMMENT', content, { encoding: 'utf8' });
+				console.log('writting "hasPrComment=true" ci output variable');
+			}
+		}
 	}
+}
+
+function gatherProposalManifests(): string[] {
+	return gatherProposalManifestsInDir(resolve('./script'));
+}
+
+function gatherProposalManifestsInDir(path: string): string[] {
+	const elements = readdirSync(path);
+	let manifests: string[] = [];
+	for (const element of elements) {
+		if (element.endsWith('.proposal.manifest.yaml')) {
+			manifests.push(relative(resolve('.'), resolve(path, element)));
+		}
+	}
+	return manifests;
 }
