@@ -107,7 +107,15 @@ function formatManifestToMarkdown(path: string, manifest: Manifest): string {
 	
 ## \`${path}\`
 
+### Safe Transaction
+
+\`\`\`yaml
+${YAML.stringify(manifest.safe_transaction)}
+\`\`\`
+
+
 <details>
+  <summary>Expand for simulation details</summary>
 
 ### Simulation Output
 
@@ -119,12 +127,6 @@ ${manifest.simulation_output}
 
 \`\`\`yaml
 ${YAML.stringify(manifest.simulation_transactions)}
-\`\`\`
-
-### Safe Transaction
-
-\`\`\`yaml
-${YAML.stringify(manifest.safe_transaction)}
 \`\`\`
 
 ### Safe Estimation
