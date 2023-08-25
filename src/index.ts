@@ -2,7 +2,7 @@
 
 import { Command, Option } from 'commander';
 import { ethers, utils } from 'ethers';
-import { writeFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { promisify } from 'util';
 import YAML from 'yaml';
 import { CacheFS } from './fs/cacheFs';
@@ -11,6 +11,7 @@ import { checkRequirements } from './requirements';
 import { getSafeApiKit } from './safe-api/kit';
 import { syncSafes } from './safe/sync';
 import { SafeCDKit } from './utils/types';
+const { LedgerSigner } = require('@ethersproject/hardware-wallets');
 const exec = promisify(require('child_process').exec);
 const program = new Command();
 
@@ -34,14 +35,6 @@ const transactionApis: { [key: string]: string } = {
 	mainnet: 'https://safe-transaction-mainnet.safe.global',
 	goerli: 'https://safe-transaction-goerli.safe.global'
 };
-
-// const { LedgerSigner } = require("@ethersproject/hardware-wallets");
-// const ledgerSigner = new LedgerSigner(provider, "hid", "m/44'/60'/0'/0/0");
-
-// await sak.addSafeDelegate({
-// 	label: "safecd",
-// 	signer: ledgerSigner
-// })
 
 program
 	.command('sync')
@@ -92,8 +85,8 @@ program
 			console.log();
 		}
 		const fs = new CacheFS();
-		const config = validateGlobalConfig(YAML.parse(fs.read('./safecd.yaml')));
 		const chainId = (await provider.getNetwork()).chainId;
+		const config = validateGlobalConfig(YAML.parse(fs.read('./safecd.yaml')));
 		const safeApiUrl = transactionApis[config.network] as string;
 		if (!safeApiUrl) {
 			throw new Error(`Unsupported network ${config.network}`);
@@ -164,6 +157,41 @@ program
 				address: options.safe,
 				name: options.safe,
 				type: 'safe'
+			})
+		);
+	});
+
+program
+	.command('add-delegate')
+	.requiredOption('--rpc <char>', 'rpc url')
+	.requiredOption('--safe <char>', 'safe address')
+	.requiredOption('--label <char>', 'delegate label')
+	.requiredOption('--delegate <char>', 'delegate address')
+	.requiredOption('--delegator <char>', 'delegate address')
+	.option('--ledger <char>', 'ledger derivation path')
+	.option('--pk <char>', 'private key')
+	.action(async options => {
+		if (!options.ledger && !options.pk) {
+			throw new Error(`Missing ledger or pk`);
+		}
+		const provider = new ethers.providers.JsonRpcProvider(options.rpc);
+		let signer;
+		if (options.ledger) {
+			signer = new LedgerSigner(provider, 'hid', options.ledger);
+		} else {
+			signer = new ethers.Wallet(options.pk, provider);
+		}
+		const config = validateGlobalConfig(YAML.parse(readFileSync('./safecd.yaml', 'utf8')));
+		const safeApiUrl = transactionApis[config.network] as string;
+		const sak = await getSafeApiKit(provider, safeApiUrl);
+
+		console.log(
+			await sak.addSafeDelegate({
+				label: 'safecd',
+				safeAddress: options.safe,
+				delegateAddress: options.delegate,
+				delegatorAddress: options.delegator,
+				signer: signer
 			})
 		);
 	});
