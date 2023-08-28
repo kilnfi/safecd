@@ -1,16 +1,21 @@
-import { ProposeTransactionProps } from '@safe-global/api-kit';
 import { utils } from 'ethers';
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { basename, resolve } from 'path';
 import { promisify } from 'util';
-import YAML from 'yaml';
 import { getSafeKit } from '../safe-api/kit';
-import { PopulatedSafe, validatePopulatedSafe } from '../safe/types';
+import {
+	ForgeTransaction,
+	load,
+	Manifest,
+	PopulatedSafe,
+	PopulatedSafeSchema,
+	Proposal,
+	ProposalSchema,
+	SafeCDKit
+} from '../types';
 import { whereBin } from '../utils/binExists';
 import { noColor } from '../utils/noColor';
-import { SafeCDKit } from '../utils/types';
 import { yamlToString } from '../utils/yamlToString';
-import { Proposal, validateProposal } from './types';
 const exec = promisify(require('child_process').exec);
 
 export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
@@ -46,22 +51,10 @@ async function syncProposalsDir(scdk: SafeCDKit, path: string): Promise<boolean>
 	return hasProposedOne;
 }
 
-export interface Manifest {
-	simulation_output: string;
-	simulation_error_output?: string;
-	simulation_success: boolean;
-	simulation_transactions: ForgeTransaction[];
-	safe_estimation?: any;
-	safe_transaction?: ProposeTransactionProps['safeTransactionData'];
-	error?: string;
-}
-
 async function getSafeByName(scdk: SafeCDKit, name: string): Promise<PopulatedSafe | null> {
 	const safes = readdirSync('./safes');
 	for (const safeConfig of safes) {
-		const safeConfigContent = scdk.fs.read(`./safes/${safeConfig}`);
-		const loadedSafeConfig = YAML.parse(safeConfigContent);
-		const safe: PopulatedSafe = validatePopulatedSafe(safeConfig, loadedSafeConfig);
+		const safe: PopulatedSafe = load<PopulatedSafe>(scdk, PopulatedSafeSchema, `./safes/${safeConfig}`);
 		if (safe.name === name) {
 			return safe;
 		}
@@ -78,33 +71,12 @@ function delegateExists(safe: PopulatedSafe, address: string): boolean {
 	return false;
 }
 
-export interface ForgeTransaction {
-	hash: string;
-	transactionType: string;
-	contractName: string;
-	contractAddress: string;
-	function: string;
-	arguments: string;
-	transaction: {
-		type: string;
-		from: string;
-		to: string;
-		gas: string;
-		value: string;
-		data: string;
-		nonce: string;
-		accessList: string[];
-	};
-	additionalContracts: string[];
-	isFixedGasLimit: boolean;
-}
-
 async function syncProposal(
 	scdk: SafeCDKit,
 	context: string,
 	proposal: string
 ): Promise<[Proposal, Manifest | null, boolean]> {
-	const proposalConfig = validateProposal(YAML.parse(scdk.fs.read(resolve(context, proposal))));
+	const proposalConfig: Proposal = load<Proposal>(scdk, ProposalSchema, resolve(context, proposal));
 	if (proposalConfig.safeTxHash) {
 		return [proposalConfig, null, false];
 	}

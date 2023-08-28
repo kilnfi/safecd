@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync,
 import { dirname, relative, resolve } from 'path';
 import { promisify } from 'util';
 import YAML from 'yaml';
-import { Manifest } from '../proposal/sync';
+import { Manifest } from '../types';
 const exec = promisify(require('child_process').exec);
 export class CacheFS {
 	private edits: { [key: string]: string | null } = {};

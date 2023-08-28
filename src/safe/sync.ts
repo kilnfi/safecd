@@ -2,10 +2,8 @@ import { SafeMultisigTransactionListResponse } from '@safe-global/api-kit';
 import { utils } from 'ethers';
 import { existsSync, readdirSync } from 'fs';
 import { resolve } from 'path';
-import YAML from 'yaml';
-import { SafeCDKit } from '../utils/types';
+import { Address, EOA, EOASchema, load, PopulatedSafe, Safe, SafeCDKit, SafeSchema } from '../types';
 import { yamlToString } from '../utils/yamlToString';
-import { Address, EOA, PopulatedSafe, Safe, validateSafe } from './types';
 
 function hasFinalizedForNonce(txs: SafeMultisigTransactionListResponse['results'], nonce: number): boolean {
 	for (const tx of txs) {
@@ -36,9 +34,7 @@ export async function syncSafes(scdk: SafeCDKit): Promise<void> {
 	await cleanupTransactions(scdk);
 	const safes = readdirSync('./safes');
 	for (const safeConfig of safes) {
-		const safeConfigContent = scdk.fs.read(`./safes/${safeConfig}`);
-		const loadedSafeConfig = YAML.parse(safeConfigContent);
-		const safe: Safe = validateSafe(safeConfig, loadedSafeConfig);
+		const safe: Safe = load<Safe>(scdk, SafeSchema, `./safes/${safeConfig}`);
 		const retrievedAddresses = await syncSafe(scdk, safe, `./safes/${safeConfig}`);
 		const populatedSafeYaml = yamlToString(retrievedAddresses[retrievedAddresses.length - 1]);
 		scdk.fs.write(`./safes/${safeConfig}`, populatedSafeYaml);
@@ -98,9 +94,7 @@ function isMonitoredSafe(address: string, scdk: SafeCDKit): boolean {
 	if (existsSync('./safes')) {
 		const safes = readdirSync('./safes');
 		for (const safeConfig of safes) {
-			const safeConfigContent = scdk.fs.read(`./safes/${safeConfig}`);
-			const loadedSafeConfig = YAML.parse(safeConfigContent);
-			const safe: Safe = validateSafe(safeConfig, loadedSafeConfig);
+			const safe: Safe = load<Safe>(scdk, SafeSchema, `./safes/${safeConfig}`);
 			if (utils.getAddress(safe.address) === utils.getAddress(address)) {
 				return true;
 			}
@@ -113,8 +107,7 @@ function isMonitoredEOA(address: string, scdk: SafeCDKit): boolean {
 	if (existsSync('./eoas')) {
 		const eoas = readdirSync('./eoas');
 		for (const eoa of eoas) {
-			const eoaContent = scdk.fs.read(`./eoas/${eoa}`);
-			const loadedEOA: EOA = YAML.parse(eoaContent);
+			const loadedEOA: EOA = load<EOA>(scdk, EOASchema, `./eoas/${eoa}`);
 			if (utils.getAddress(loadedEOA.address) === utils.getAddress(address)) {
 				return true;
 			}

@@ -10,7 +10,7 @@ import { syncProposals } from './proposal/sync';
 import { checkRequirements } from './requirements';
 import { getSafeApiKit } from './safe-api/kit';
 import { syncSafes } from './safe/sync';
-import { SafeCDKit } from './utils/types';
+import { SafeCDKit } from './types';
 const { LedgerSigner } = require('@ethersproject/hardware-wallets');
 const exec = promisify(require('child_process').exec);
 const program = new Command();
