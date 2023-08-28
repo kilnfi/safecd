@@ -110,6 +110,8 @@ async function syncProposal(
 		return [
 			proposalConfig,
 			{
+				raw_proposal: proposalConfig,
+				raw_script: readFileSync(resolve(context, proposalConfig.proposal), 'utf8'),
 				simulation_output: cleanedStdout,
 				simulation_error_output: cleanedStderr,
 				simulation_success: false,
@@ -172,6 +174,8 @@ async function syncProposal(
 			return [
 				proposalConfig,
 				{
+					raw_proposal: proposalConfig,
+					raw_script: readFileSync(resolve(context, proposalConfig.proposal), 'utf8'),
 					simulation_output: cleanedStdout,
 					simulation_success: false,
 					simulation_transactions: [],
@@ -227,6 +231,8 @@ async function syncProposal(
 		return [
 			proposalConfig,
 			{
+				raw_proposal: proposalConfig,
+				raw_script: readFileSync(resolve(context, proposalConfig.proposal), 'utf8'),
 				simulation_output: cleanedStdout,
 				simulation_success: true,
 				simulation_transactions: txs,
@@ -239,6 +245,8 @@ async function syncProposal(
 		return [
 			proposalConfig,
 			{
+				raw_proposal: proposalConfig,
+				raw_script: readFileSync(resolve(context, proposalConfig.proposal), 'utf8'),
 				simulation_output: cleanedStdout,
 				simulation_success: true,
 				simulation_transactions: txs,

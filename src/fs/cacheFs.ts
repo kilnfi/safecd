@@ -103,10 +103,21 @@ export class CacheFS {
 }
 
 function formatManifestToMarkdown(path: string, manifest: Manifest): string {
+	const { title, description, ...proposalWithoutMetadata } = manifest.raw_proposal;
 	if (manifest.error === undefined) {
 		return `
 	
 ## \`${path}\` ✅
+
+### ${title}
+
+${description || ''}
+
+### Proposal
+
+\`\`\`yaml
+${YAML.stringify(proposalWithoutMetadata)}
+\`\`\`
 
 ### Safe Transaction
 
@@ -114,17 +125,19 @@ function formatManifestToMarkdown(path: string, manifest: Manifest): string {
 ${YAML.stringify(manifest.safe_transaction)}
 \`\`\`
 
+### Proposal Script
 
-<details>
-  <summary>Expand for simulation details</summary>
+\`\`\`solidity
+${manifest.raw_script}
+\`\`\`
 
-### Simulation Output
+### Proposal Script Simulation Output
 
 \`\`\`
 ${manifest.simulation_output}
 \`\`\`
 
-### Simulation Transactions
+### Proposal Script Simulation Transactions
 
 \`\`\`yaml
 ${YAML.stringify(manifest.simulation_transactions)}
@@ -136,7 +149,6 @@ ${YAML.stringify(manifest.simulation_transactions)}
 ${YAML.stringify(manifest.safe_estimation)}
 \`\`\`
 
-</details>
 `;
 	} else {
 		return `
@@ -147,13 +159,29 @@ ${YAML.stringify(manifest.safe_estimation)}
 ${manifest.error}
 \`\`\`
 
-### Simulation Output
+### ${title}
+
+${description || ''}
+
+### Proposal
+
+\`\`\`yaml
+${YAML.stringify(proposalWithoutMetadata)}
+\`\`\`
+
+### Proposal Script
+
+\`\`\`solidity
+${manifest.raw_script}
+\`\`\`
+
+### Proposal Script Simulation Output
 
 \`\`\`
 ${manifest.simulation_output}
 \`\`\`
 
-### Simulation Error Output
+### Proposal Script Simulation Error Output
 
 \`\`\`
 ${manifest.simulation_error_output}

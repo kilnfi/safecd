@@ -96,6 +96,8 @@ export interface SafeCDKit {
 }
 
 export interface Manifest {
+	raw_proposal: Proposal;
+	raw_script: string;
 	simulation_output: string;
 	simulation_error_output?: string;
 	simulation_success: boolean;
