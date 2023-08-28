@@ -1,6 +1,7 @@
 import { Command, Option } from 'commander';
 import { ethers, utils } from 'ethers';
 import { transactionApis } from '../constants';
+import { generateRootReadme } from '../docs/generatedRootReadme';
 import { CacheFS } from '../fs/cacheFs';
 import { syncProposals } from '../proposal/sync';
 import { checkRequirements } from '../requirements';
@@ -78,7 +79,8 @@ export default function loadCommand(command: Command): void {
 				shouldWrite,
 				fs,
 				network: config.network,
-				network_id: chainId
+				network_id: chainId,
+				config
 			};
 
 			console.log('stage 1: syncing safes, transactions, owners and delegates');
@@ -102,6 +104,8 @@ export default function loadCommand(command: Command): void {
 			console.log();
 			console.log('  ================================================  ');
 			console.log();
+
+			await generateRootReadme(scdk);
 
 			scdk.fs.printDiff();
 			await scdk.fs.commit(scdk.shouldWrite);

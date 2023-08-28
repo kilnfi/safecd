@@ -9,7 +9,8 @@ const ethAddressSchema = z.string().refine(value => utils.isAddress(value), {
 });
 
 export const GlobalConfigSchema = z.object({
-	network: z.string()
+	network: z.string(),
+	title: z.string()
 });
 
 const AddressSchema = z.object({
@@ -91,6 +92,7 @@ export interface SafeCDKit {
 	fs: CacheFS;
 	network: string;
 	network_id: number;
+	config: GlobalConfig;
 }
 
 export interface Manifest {
