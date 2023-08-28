@@ -96,6 +96,7 @@ export interface SafeCDKit {
 }
 
 export interface Manifest {
+	safe: PopulatedSafe;
 	raw_proposal: Proposal;
 	raw_script: string;
 	simulation_output: string;

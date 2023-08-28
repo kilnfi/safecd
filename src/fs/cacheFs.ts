@@ -125,6 +125,12 @@ ${YAML.stringify(proposalWithoutMetadata)}
 ${YAML.stringify(manifest.safe_transaction)}
 \`\`\`
 
+### Safe
+
+\`\`\`yaml
+${YAML.stringify(manifest.safe)}
+\`\`\`
+
 ### Proposal Script
 
 \`\`\`solidity
@@ -167,6 +173,12 @@ ${description || ''}
 
 \`\`\`yaml
 ${YAML.stringify(proposalWithoutMetadata)}
+\`\`\`
+
+### Safe
+
+\`\`\`yaml
+${YAML.stringify(manifest.safe)}
 \`\`\`
 
 ### Proposal Script
