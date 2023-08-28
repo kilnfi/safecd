@@ -116,48 +116,6 @@ function isMonitoredEOA(address: string, scdk: SafeCDKit): boolean {
 	return false;
 }
 
-export interface Transaction {
-	safe: string;
-	to: string;
-	value: string;
-	data: string;
-	operation: number;
-	gasToken: string;
-	safeTxGas: number;
-	baseGas: number;
-	gasPrice: string;
-	refundReceiver: string;
-	nonce: number;
-	executionDate: string | null;
-	submissionDate: string;
-	modified: string;
-	blockNumber: number | null;
-	transactionHash: string | null;
-	safeTxHash: string;
-	executor: string | null;
-	isExecuted: false;
-	isSuccessful: null;
-	ethGasPrice: null;
-	maxFeePerGas: null;
-	maxPriorityFeePerGas: null;
-	gasUsed: null;
-	fee: null;
-	origin: '{"url": "https://apps-portal.safe.global/tx-builder", "name": "unknown"}';
-	dataDecoded: { method: 'multiSend'; parameters: [[Object]] };
-	confirmationsRequired: 2;
-	confirmations: [
-		{
-			owner: '0x37d33601b872Cb72ee58c4E2829bf0b36767Ba19';
-			submissionDate: '2023-08-23T07:36:04.150185Z';
-			transactionHash: null;
-			signature: '0x26747f283e90a7147a58b2b5e2de7f72f2efede4733720d7c2a2bba74158cfb36c166f413428fe5bc324eee26363b66ba7b5f7be34ce3c58c89e4a59d2114ce71b';
-			signatureType: 'EOA';
-		}
-	];
-	trusted: true;
-	signatures: null;
-}
-
 async function syncSafeTransactions(
 	safe: PopulatedSafe,
 	scdk: SafeCDKit

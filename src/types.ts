@@ -55,6 +55,48 @@ export const ProposalSchema = z.object({
 	safeTxHash: z.string().optional()
 });
 
+export const TransactionSchema = z.object({
+	safe: z.string(),
+	to: z.string(),
+	value: z.string(),
+	data: z.string().nullable(),
+	operation: z.number(),
+	gasToken: z.string(),
+	safeTxGas: z.number(),
+	baseGas: z.number(),
+	gasPrice: z.string(),
+	refundReceiver: z.string(),
+	nonce: z.number(),
+	executionDate: z.string().nullable(),
+	submissionDate: z.string(),
+	modified: z.string(),
+	blockNumber: z.number().nullable(),
+	transactionHash: z.string().nullable(),
+	safeTxHash: z.string(),
+	executor: z.string().nullable(),
+	isExecuted: z.boolean(),
+	isSuccessful: z.boolean().nullable(),
+	ethGasPrice: z.string().nullable(),
+	maxFeePerGas: z.string().nullable(),
+	maxPriorityFeePerGas: z.string().nullable(),
+	gasUsed: z.number().nullable(),
+	fee: z.string().nullable(),
+	origin: z.string().nullable(),
+	dataDecoded: z.any(),
+	confirmationsRequired: z.number(),
+	confirmations: z.array(
+		z.object({
+			owner: z.string(),
+			submissionDate: z.string(),
+			transactionHash: z.string().nullable(),
+			signature: z.string(),
+			signatureType: z.string()
+		})
+	),
+	trusted: z.boolean(),
+	signatures: z.string().nullable()
+});
+
 export type GlobalConfig = z.infer<typeof GlobalConfigSchema>;
 export type Address = z.infer<typeof AddressSchema>;
 export type Safe = z.infer<typeof SafeSchema>;
@@ -62,6 +104,7 @@ export type EOA = z.infer<typeof EOASchema>;
 export type PopulatedSafe = z.infer<typeof PopulatedSafeSchema>;
 export type Delegate = z.infer<typeof DelegateSchema>;
 export type Proposal = z.infer<typeof ProposalSchema>;
+export type Transaction = z.infer<typeof TransactionSchema>;
 
 export function load<T>(fs: CacheFS, zo: z.ZodType<T>, path: string): T {
 	const rawSafe = YAML.parse(fs.read(path));
