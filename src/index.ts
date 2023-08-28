@@ -2,7 +2,7 @@
 
 import { Command, Option } from 'commander';
 import { ethers, utils } from 'ethers';
-import { readFileSync, writeFileSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { promisify } from 'util';
 import YAML from 'yaml';
 import { CacheFS } from './fs/cacheFs';
@@ -10,23 +10,13 @@ import { syncProposals } from './proposal/sync';
 import { checkRequirements } from './requirements';
 import { getSafeApiKit } from './safe-api/kit';
 import { syncSafes } from './safe/sync';
-import { SafeCDKit } from './types';
+import { GlobalConfig, GlobalConfigSchema, load, SafeCDKit } from './types';
+const packageJson = require('../package.json');
 const { LedgerSigner } = require('@ethersproject/hardware-wallets');
 const exec = promisify(require('child_process').exec);
 const program = new Command();
 
-interface GlobalConfig {
-	network: string;
-}
-
-function validateGlobalConfig(config: any): GlobalConfig {
-	if (!config.network) {
-		throw new Error(`Missing network in global config`);
-	}
-	return config as GlobalConfig;
-}
-
-program.name('safecd').description('Reconcile git repository with safes').version('1.0.0');
+program.name('safecd').description('Reconcile git repository with safes').version(packageJson.version);
 
 const rpcOption = new Option('--rpc <char>', 'ethereum rpc endpoint').env('RPC');
 rpcOption.mandatory = true;
@@ -86,7 +76,7 @@ program
 		}
 		const fs = new CacheFS();
 		const chainId = (await provider.getNetwork()).chainId;
-		const config = validateGlobalConfig(YAML.parse(fs.read('./safecd.yaml')));
+		const config: GlobalConfig = load<GlobalConfig>(fs, GlobalConfigSchema, './safecd.yaml');
 		const safeApiUrl = transactionApis[config.network] as string;
 		if (!safeApiUrl) {
 			throw new Error(`Unsupported network ${config.network}`);
@@ -181,7 +171,8 @@ program
 		} else {
 			signer = new ethers.Wallet(options.pk, provider);
 		}
-		const config = validateGlobalConfig(YAML.parse(readFileSync('./safecd.yaml', 'utf8')));
+		const fs = new CacheFS();
+		const config: GlobalConfig = load<GlobalConfig>(fs, GlobalConfigSchema, './safecd.yaml');
 		const safeApiUrl = transactionApis[config.network] as string;
 		const sak = await getSafeApiKit(provider, safeApiUrl);
 

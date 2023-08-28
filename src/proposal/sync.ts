@@ -54,7 +54,7 @@ async function syncProposalsDir(scdk: SafeCDKit, path: string): Promise<boolean>
 async function getSafeByName(scdk: SafeCDKit, name: string): Promise<PopulatedSafe | null> {
 	const safes = readdirSync('./safes');
 	for (const safeConfig of safes) {
-		const safe: PopulatedSafe = load<PopulatedSafe>(scdk, PopulatedSafeSchema, `./safes/${safeConfig}`);
+		const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
 		if (safe.name === name) {
 			return safe;
 		}
@@ -76,7 +76,7 @@ async function syncProposal(
 	context: string,
 	proposal: string
 ): Promise<[Proposal, Manifest | null, boolean]> {
-	const proposalConfig: Proposal = load<Proposal>(scdk, ProposalSchema, resolve(context, proposal));
+	const proposalConfig: Proposal = load<Proposal>(scdk.fs, ProposalSchema, resolve(context, proposal));
 	if (proposalConfig.safeTxHash) {
 		return [proposalConfig, null, false];
 	}

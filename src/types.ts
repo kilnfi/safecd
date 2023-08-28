@@ -8,6 +8,10 @@ const ethAddressSchema = z.string().refine(value => utils.isAddress(value), {
 	message: 'Provided address is invalid. Please insure you have typed correctly.'
 });
 
+export const GlobalConfigSchema = z.object({
+	network: z.string()
+});
+
 const AddressSchema = z.object({
 	type: z.string(),
 	name: z.string(),
@@ -50,6 +54,7 @@ export const ProposalSchema = z.object({
 	safeTxHash: z.string().optional()
 });
 
+export type GlobalConfig = z.infer<typeof GlobalConfigSchema>;
 export type Address = z.infer<typeof AddressSchema>;
 export type Safe = z.infer<typeof SafeSchema>;
 export type EOA = z.infer<typeof EOASchema>;
@@ -57,8 +62,8 @@ export type PopulatedSafe = z.infer<typeof PopulatedSafeSchema>;
 export type Delegate = z.infer<typeof DelegateSchema>;
 export type Proposal = z.infer<typeof ProposalSchema>;
 
-export function load<T>(scdk: SafeCDKit, zo: z.ZodType<T>, path: string): T {
-	const rawSafe = YAML.parse(scdk.fs.read(path));
+export function load<T>(fs: CacheFS, zo: z.ZodType<T>, path: string): T {
+	const rawSafe = YAML.parse(fs.read(path));
 	const res = zo.safeParse(rawSafe);
 	if (!res.success) {
 		console.error(`error${res.error.errors.length > 1 ? 's' : ''} parsing ${path}:`);

@@ -34,7 +34,7 @@ export async function syncSafes(scdk: SafeCDKit): Promise<void> {
 	await cleanupTransactions(scdk);
 	const safes = readdirSync('./safes');
 	for (const safeConfig of safes) {
-		const safe: Safe = load<Safe>(scdk, SafeSchema, `./safes/${safeConfig}`);
+		const safe: Safe = load<Safe>(scdk.fs, SafeSchema, `./safes/${safeConfig}`);
 		const retrievedAddresses = await syncSafe(scdk, safe, `./safes/${safeConfig}`);
 		const populatedSafeYaml = yamlToString(retrievedAddresses[retrievedAddresses.length - 1]);
 		scdk.fs.write(`./safes/${safeConfig}`, populatedSafeYaml);
@@ -94,7 +94,7 @@ function isMonitoredSafe(address: string, scdk: SafeCDKit): boolean {
 	if (existsSync('./safes')) {
 		const safes = readdirSync('./safes');
 		for (const safeConfig of safes) {
-			const safe: Safe = load<Safe>(scdk, SafeSchema, `./safes/${safeConfig}`);
+			const safe: Safe = load<Safe>(scdk.fs, SafeSchema, `./safes/${safeConfig}`);
 			if (utils.getAddress(safe.address) === utils.getAddress(address)) {
 				return true;
 			}
@@ -107,7 +107,7 @@ function isMonitoredEOA(address: string, scdk: SafeCDKit): boolean {
 	if (existsSync('./eoas')) {
 		const eoas = readdirSync('./eoas');
 		for (const eoa of eoas) {
-			const loadedEOA: EOA = load<EOA>(scdk, EOASchema, `./eoas/${eoa}`);
+			const loadedEOA: EOA = load<EOA>(scdk.fs, EOASchema, `./eoas/${eoa}`);
 			if (utils.getAddress(loadedEOA.address) === utils.getAddress(address)) {
 				return true;
 			}
