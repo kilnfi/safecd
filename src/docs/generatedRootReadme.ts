@@ -1,6 +1,6 @@
 import { utils } from 'ethers';
 import { readdirSync, statSync } from 'fs';
-import { resolve } from 'path';
+import { relative, resolve } from 'path';
 import YAML from 'yaml';
 import {
 	EOA,
@@ -168,7 +168,7 @@ function getProposalOfSafeHashFromDir(
 		} else if (stat.isFile() && element.endsWith('.proposal.yaml')) {
 			const proposal: Proposal = load<Proposal>(scdk.fs, ProposalSchema, elementPath);
 			if (proposal.safeTxHash && proposal.safeTxHash?.toLowerCase() === tx.safeTxHash.toLowerCase()) {
-				return [elementPath, proposal];
+				return [relative(resolve('.'), elementPath), proposal];
 			}
 		}
 	}
