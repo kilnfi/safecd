@@ -12,7 +12,7 @@ export default function loadCommand(command: Command): void {
 		.action(async options => {
 			console.log('initializing current directory');
 			await exec('forge init');
-			await exec('rm -rf src test script');
+			await exec('rm -rf src test script .github');
 			await exec('git clone https://github.com/kilnfi/safecd-templates.git ./template');
 			await exec('cp -r ./template/script .');
 			await exec('cp -r ./template/.github_templates .github');
@@ -33,5 +33,7 @@ export default function loadCommand(command: Command): void {
 					type: 'safe'
 				})
 			);
+			await exec('git add --all');
+			await exec('git commit -m "safecd ready"');
 		});
 }
