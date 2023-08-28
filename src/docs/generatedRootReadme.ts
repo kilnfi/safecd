@@ -62,31 +62,35 @@ function generateSafeDiagram(scdk: SafeCDKit, safe: PopulatedSafe, done: { [key:
 	done[safe.address] = true;
 
 	for (const owner of safe.owners) {
-		if (isSafe(owner, scdk)) {
-			content += `${owner}{{${getNames(scdk, owner).join(', ')}<br/>type=safe<br/>${owner}}} -->|owner| ${
+		const ownerSafe = getSafe(owner, scdk);
+		if (ownerSafe !== null) {
+			content += `${owner}{{${getNames(scdk, owner).join(', ')}<br/>type=safe,threshold=${
+				ownerSafe.threshold
+			}<br/>${owner}}} -->|owner| ${safe.address}{{${safe.name}<br/>type=safe,threshold=${safe.threshold}<br/>${
 				safe.address
-			}{{${safe.name}<br/>type=safe<br/>${safe.address}}}\n`;
+			}}}\n`;
 		} else {
 			content += `${owner}(${getNames(scdk, owner).join(', ')}<br/>type=eoa<br/>${owner}) -->|owner| ${
 				safe.address
-			}{{${safe.name}<br/>type=safe<br/>${safe.address}}}\n`;
+			}{{${safe.name}<br/>type=safe,threshold=${safe.threshold}<br/>${safe.address}}}\n`;
 		}
 	}
 
 	for (const delegate of safe.delegates) {
 		const delegateAddress = delegate.delegate;
-		if (isSafe(delegateAddress, scdk)) {
-			content += `${delegateAddress}{{${getNames(scdk, delegateAddress).join(', ')}<br/>type=safe,label=${
-				delegate.label
-			}<br/>${delegateAddress}}} -->|delegate| ${safe.address}{{${safe.name}<br/>type=safe<br/>${
-				safe.address
-			}}}\n`;
+		const delegateSafe = getSafe(delegateAddress, scdk);
+		if (delegateSafe !== null) {
+			content += `${delegateAddress}{{${getNames(scdk, delegateAddress).join(', ')}<br/>type=safe,threshold=${
+				delegateSafe.threshold
+			},label=${delegate.label}<br/>${delegateAddress}}} -->|delegate| ${safe.address}{{${
+				safe.name
+			}<br/>type=safe,threshold=${safe.threshold}<br/>${safe.address}}}\n`;
 		} else {
 			content += `${delegateAddress}(${getNames(scdk, delegateAddress).join(', ')}<br/>type=eoa,label=${
 				delegate.label
-			}<br/>${delegateAddress}) -->|delegate| ${safe.address}{{${safe.name}<br/>type=safe<br/>${
-				safe.address
-			}}}\n`;
+			}<br/>${delegateAddress}) -->|delegate| ${safe.address}{{${safe.name}<br/>type=safe,threshold=${
+				safe.threshold
+			}<br/>${safe.address}}}\n`;
 		}
 	}
 
@@ -114,13 +118,13 @@ function getNames(scdk: SafeCDKit, address: string): string[] {
 	return names;
 }
 
-function isSafe(address: string, scdk: SafeCDKit): boolean {
+function getSafe(address: string, scdk: SafeCDKit): PopulatedSafe | null {
 	const safes = readdirSync('./safes');
 	for (const safeConfig of safes) {
 		const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
 		if (utils.getAddress(safe.address) === utils.getAddress(address)) {
-			return true;
+			return safe;
 		}
 	}
-	return false;
+	return null;
 }
