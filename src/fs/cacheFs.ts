@@ -72,7 +72,7 @@ export class CacheFS {
 			}
 		}
 		if (COMMIT_MSG !== '') {
-			COMMIT_MSG = `safecd: create=${creationCount} edit=${editionCount} delete=${deletionCount}\n\n${COMMIT_MSG}`;
+			COMMIT_MSG = `safecd: create=${creationCount} edit=${editionCount} delete=${deletionCount}\n\n${COMMIT_MSG}\n\nskip-checks: true\n`;
 			writeFileSync('COMMIT_MSG', COMMIT_MSG, { encoding: 'utf8' });
 			if (process.env.CI === 'true') {
 				await exec(`echo "hasChanges=true" >> $GITHUB_OUTPUT`);
