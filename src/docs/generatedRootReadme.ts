@@ -20,6 +20,11 @@ const explorerByNetwork: { [key: string]: string } = {
 	goerli: 'https://goerli.etherscan.io/tx/'
 };
 
+const uiByNetwork: { [key: string]: string } = {
+	mainnet: 'https://app.safe.global/home?safe=eth:',
+	goerli: 'https://app.safe.global/home?safe=gor'
+};
+
 export async function generateRootReadme(scdk: SafeCDKit): Promise<void> {
 	let content = `# ${scdk.config.title}
 
@@ -43,7 +48,7 @@ function generateSafesDetailsDiagram(scdk: SafeCDKit): string {
 		content += `
 ---
 
-## ${safe.name}
+## [${safe.name} (\`${safe.address}\`)](${uiByNetwork[scdk.network]}${safe.address})
 
 ${safe.description ? safe.description : ''}
 
@@ -67,7 +72,7 @@ ${
 		  )
 }
 
-### History
+### Transaction History
 
 <details>
 <summary>Click to expand</summary>
@@ -79,8 +84,8 @@ ${
 <td>Title</td>
 <td>Description</td>
 <td>Payload</td>
-<td>Confirmations</td>
 <td>Signers</td>
+<td>Executor</td>
 <td>Tx</td>
 <td>Proposal</td>
 <tr>
@@ -209,14 +214,15 @@ ${proposal.description}
 
 
 \`\`\`yaml
-${YAML.stringify(tx)}
+${YAML.stringify(tx, { lineWidth: 0 })}
 \`\`\`
 
 
 </details>
 </td>
-<td>${tx.confirmations.length}/${safe.threshold}</td>
+${tx.isExecuted ? '' : `<td>${getConfirmationIcons(tx.confirmations.length, safe.threshold)}</td>`}
 <td>${resolveConfirmations(scdk, tx)}</td>
+${tx.isExecuted ? `<td>${resolveExecutor(scdk, tx)}</td>` : ''}
 ${
 	tx.isExecuted
 		? `<td><a target="_blank" href="${explorerByNetwork[scdk.network]}${tx.transactionHash}">🔗</a></td>`
@@ -227,6 +233,14 @@ ${
 `;
 	}
 	return content;
+}
+
+function getConfirmationIcons(confirmationCount: number, threshold: number): string {
+	return '🟩'.repeat(confirmationCount) + '⬜️'.repeat(threshold - confirmationCount);
+}
+
+function resolveExecutor(scdk: SafeCDKit, tx: Transaction): string {
+	return getNameAndType(scdk, tx.executor as string);
 }
 
 function resolveConfirmations(scdk: SafeCDKit, tx: Transaction): string {
@@ -254,7 +268,7 @@ function getNameAndType(scdk: SafeCDKit, address: string): string {
 		}
 	}
 
-	return address;
+	return `<code>${address}</code>`;
 }
 
 function getAllSafeTransactions(scdk: SafeCDKit, safe: PopulatedSafe): Transaction[] {
