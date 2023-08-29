@@ -33,7 +33,7 @@ export class CacheFS {
 				color: true,
 				forceFake: true
 			});
-			if (diff !== undefined) {
+			if (diff !== undefined && file !== resolve('./README.md')) {
 				console.log(`${file}:`);
 				console.log();
 				console.log(diff);

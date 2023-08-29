@@ -16,8 +16,8 @@ import {
 } from '../types';
 
 const explorerByNetwork: { [key: string]: string } = {
-	mainnet: 'https://etherscan.io/tx/',
-	goerli: 'https://goerli.etherscan.io/tx/'
+	mainnet: 'https://etherscan.io',
+	goerli: 'https://goerli.etherscan.io'
 };
 
 const uiByNetwork: { [key: string]: string } = {
@@ -224,11 +224,7 @@ ${YAML.stringify(tx, { lineWidth: 0 })}
 ${tx.isExecuted ? '' : `<td>${getConfirmationIcons(tx.confirmations.length, safe.threshold)}</td>`}
 <td>${resolveConfirmations(scdk, tx)}</td>
 ${tx.isExecuted ? `<td>${resolveExecutor(scdk, tx)}</td>` : ''}
-${
-	tx.isExecuted
-		? `<td><a target="_blank" href="${explorerByNetwork[scdk.network]}${tx.transactionHash}">🔗</a></td>`
-		: ''
-}
+${tx.isExecuted ? `<td><a target="_blank" href="${getTxExplorerLink(scdk, tx)}">🔗</a></td>` : ''}
 <td>${proposal ? `<a target="_blank" href="${proposalPath}">🔗</a>` : ''}</td>
 </tr>
 `;
@@ -252,12 +248,22 @@ function resolveConfirmations(scdk: SafeCDKit, tx: Transaction): string {
 	return content.join('<br/>');
 }
 
+function getAddressExplorerLink(scdk: SafeCDKit, address: string): string {
+	return `${explorerByNetwork[scdk.network]}/address/${address}`;
+}
+
+function getTxExplorerLink(scdk: SafeCDKit, tx: Transaction): string {
+	return `${explorerByNetwork[scdk.network]}/tx/${tx.transactionHash}`;
+}
+
 function getNameAndType(scdk: SafeCDKit, address: string): string {
 	const eoas = readdirSync('./eoas');
 	for (const eoa of eoas) {
 		const loadedEOA: EOA = load<EOA>(scdk.fs, EOASchema, `./eoas/${eoa}`);
 		if (utils.getAddress(loadedEOA.address) === utils.getAddress(address)) {
-			return `<code>eoa@${loadedEOA.name}</code>`;
+			return `<code><a href="${getAddressExplorerLink(scdk, address)}" target="_blank">eoa@${
+				loadedEOA.name
+			}</a></code>`;
 		}
 	}
 
@@ -265,11 +271,13 @@ function getNameAndType(scdk: SafeCDKit, address: string): string {
 	for (const safeConfig of safes) {
 		const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
 		if (utils.getAddress(safe.address) === utils.getAddress(address)) {
-			return `<code>safe@${safe.name}</code>`;
+			return `<code><a href="${getAddressExplorerLink(scdk, address)}" target="_blank">safe@${
+				safe.name
+			}</a></code>`;
 		}
 	}
 
-	return `<code>${address}</code>`;
+	return `<code><a href="${getAddressExplorerLink(scdk, address)}" target="_blank">${address}</a></code>`;
 }
 
 function getAllSafeTransactions(scdk: SafeCDKit, safe: PopulatedSafe): Transaction[] {

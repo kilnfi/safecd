@@ -4,6 +4,8 @@ import { basename, resolve } from 'path';
 import { promisify } from 'util';
 import { getSafeKit } from '../safe-api/kit';
 import {
+	EOA,
+	EOASchema,
 	ForgeTransaction,
 	load,
 	Manifest,
@@ -71,6 +73,23 @@ function delegateExists(safe: PopulatedSafe, address: string): boolean {
 	return false;
 }
 
+function harvestAllLabels(scdk: SafeCDKit): string {
+	const eoas = readdirSync('./eoas');
+	const safes = readdirSync('./safes');
+	const labels = [];
+	for (const eoa of eoas) {
+		const loadedEOA = load<EOA>(scdk.fs, EOASchema, `./eoas/${eoa}`);
+		labels.push(loadedEOA.address);
+		labels.push(`EOA:${loadedEOA.name}`);
+	}
+	for (const safe of safes) {
+		const loadedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safe}`);
+		labels.push(loadedSafe.address);
+		labels.push(`SAFE:${loadedSafe.name}`);
+	}
+	return labels.join(',');
+}
+
 async function syncProposal(
 	scdk: SafeCDKit,
 	context: string,
@@ -93,9 +112,11 @@ async function syncProposal(
 		/'/g,
 		''
 	)}' -vvvvv ${proposalConfig.arguments?.join(' ')}`;
+
 	let cleanedStdout;
 	let cleanedStderr;
 	try {
+		process.env.SAFECD_SIMULATION_LABELS = harvestAllLabels(scdk);
 		const { error, stdout, stderr } = await exec(command);
 		cleanedStdout = noColor(stdout);
 		cleanedStdout = cleanedStdout.slice(
@@ -122,6 +143,7 @@ async function syncProposal(
 			false
 		];
 	}
+	delete process.env.SAFECD_SIMULATION_LABELS;
 	const foundryExecutionManifest = JSON.parse(
 		readFileSync(
 			resolve(
