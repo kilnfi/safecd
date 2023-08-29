@@ -45,6 +45,7 @@ function generateSafesDetailsDiagram(scdk: SafeCDKit): string {
 	for (const safeConfig of safes) {
 		const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
 		const safeTransactions: Transaction[] = getAllSafeTransactions(scdk, safe);
+		const [diagram] = generateSafeDiagram(scdk, safe, 0, {});
 		content += `
 ---
 
@@ -57,7 +58,7 @@ ${safe.description ? safe.description : ''}
 flowchart LR
 subgraph ${safe.name}
 direction LR
-${generateSafeDiagram(scdk, safe, {})}
+${diagram}
 end
 \`\`\`
 
@@ -300,55 +301,138 @@ function generateSafesDiagram(scdk: SafeCDKit): string {
 	let content = 'flowchart LR\nsubgraph Overview\ndirection LR\n';
 	const done = {};
 	const safes = readdirSync('./safes');
+	let index = 0;
 	for (const safeConfig of safes) {
 		const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
-		content += generateSafeDiagram(scdk, safe, done);
+		const [res, newIndex] = generateSafeDiagram(scdk, safe, index, done);
+		content += res;
+		index = newIndex;
 	}
 	content += 'end\n';
 	return content;
 }
 
-function generateSafeDiagram(scdk: SafeCDKit, safe: PopulatedSafe, done: { [key: string]: boolean }): string {
+var colors = require('nice-color-palettes');
+
+function getLightest(palette: string[]): string {
+	let lightest = palette[0];
+	let lighestsScore = 0;
+	for (const color of palette) {
+		const score =
+			parseInt(color.slice(1, 3), 16) + parseInt(color.slice(3, 5), 16) + parseInt(color.slice(5, 7), 16);
+		if (score > lighestsScore) {
+			lighestsScore = score;
+			lightest = color;
+		}
+	}
+	return lightest;
+}
+
+function getDarkest(palette: string[]): string {
+	let darkest = palette[0];
+	let darkestScore = Infinity;
+	for (const color of palette) {
+		const score =
+			parseInt(color.slice(1, 3), 16) + parseInt(color.slice(3, 5), 16) + parseInt(color.slice(5, 7), 16);
+		if (score < darkestScore) {
+			darkestScore = score;
+			darkest = color;
+		}
+	}
+	return darkest;
+}
+
+function getScore(color: string): number {
+	return parseInt(color.slice(1, 3), 16) + parseInt(color.slice(3, 5), 16) + parseInt(color.slice(5, 7), 16);
+}
+
+function increaseScore(color: string, add: number): string {
+	let r = parseInt(color.slice(1, 3), 16);
+	let g = parseInt(color.slice(3, 5), 16);
+	let b = parseInt(color.slice(5, 7), 16);
+	const score = r + g + b;
+	if (score + add > 765) {
+		return '#ffffff';
+	}
+	const ratio = add / score;
+	r = Math.round(r * (1 + ratio));
+	g = Math.round(g * (1 + ratio));
+	b = Math.round(b * (1 + ratio));
+	return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+function lightAndDark(address: string): [string, string] {
+	const index = parseInt(utils.getAddress(address).slice(2, 8), 16);
+	const palette = colors[index % colors.length];
+	let lightest = getLightest(palette);
+	let darkest = getDarkest(palette);
+	while (getScore(lightest) - getScore(darkest) < 300) {
+		lightest = increaseScore(lightest, 10);
+		darkest = increaseScore(darkest, -10);
+	}
+	if (parseInt(utils.getAddress(address).slice(8, 10), 16) % 2 == 0) {
+		return [lightest, darkest];
+	}
+	return [darkest, lightest];
+}
+
+function generateSafeDiagram(
+	scdk: SafeCDKit,
+	safe: PopulatedSafe,
+	linkIndex: number,
+	done: { [key: string]: boolean }
+): [string, number] {
 	let content = '';
 	if (done[safe.address]) {
-		return content;
+		return [content, linkIndex];
 	}
 	done[safe.address] = true;
 
+	let internalIdx = 0;
+	const [safeLight, safeDark] = lightAndDark(safe.address);
 	for (const owner of safe.owners) {
+		const [light, dark] = lightAndDark(owner);
 		const ownerSafe = getSafe(owner, scdk);
 		if (ownerSafe !== null) {
 			content += `${owner}{{${getNames(scdk, owner).join(', ')}<br/>type=safe,threshold=${
 				ownerSafe.threshold
-			}<br/>${owner}}} -->|owner| ${safe.address}{{${safe.name}<br/>type=safe,threshold=${safe.threshold}<br/>${
+			}<br/>${owner}}} ---|owner| ${safe.address}{{${safe.name}<br/>type=safe,threshold=${safe.threshold}<br/>${
 				safe.address
 			}}}\n`;
 		} else {
-			content += `${owner}(${getNames(scdk, owner).join(', ')}<br/>type=eoa<br/>${owner}) -->|owner| ${
+			content += `${owner}(${getNames(scdk, owner).join(', ')}<br/>type=eoa<br/>${owner}) ---|owner| ${
 				safe.address
 			}{{${safe.name}<br/>type=safe,threshold=${safe.threshold}<br/>${safe.address}}}\n`;
 		}
+		content += `style ${owner} fill:${light},color:${dark},stroke:${dark},stroke-width:4px\n`;
+		content += `linkStyle ${linkIndex + internalIdx} stroke:${safeDark},stroke-width:4px\n`;
+		++internalIdx;
 	}
 
 	for (const delegate of safe.delegates) {
 		const delegateAddress = delegate.delegate;
 		const delegateSafe = getSafe(delegateAddress, scdk);
+		const [light, dark] = lightAndDark(delegateAddress);
 		if (delegateSafe !== null) {
 			content += `${delegateAddress}{{${getNames(scdk, delegateAddress).join(', ')}<br/>type=safe,threshold=${
 				delegateSafe.threshold
-			},label=${delegate.label}<br/>${delegateAddress}}} -->|delegate| ${safe.address}{{${
+			},label=${delegate.label}<br/>${delegateAddress}}} ---|delegate| ${safe.address}{{${
 				safe.name
 			}<br/>type=safe,threshold=${safe.threshold}<br/>${safe.address}}}\n`;
 		} else {
 			content += `${delegateAddress}(${getNames(scdk, delegateAddress).join(', ')}<br/>type=eoa,label=${
 				delegate.label
-			}<br/>${delegateAddress}) -->|delegate| ${safe.address}{{${safe.name}<br/>type=safe,threshold=${
+			}<br/>${delegateAddress}) ---|delegate| ${safe.address}{{${safe.name}<br/>type=safe,threshold=${
 				safe.threshold
 			}<br/>${safe.address}}}\n`;
 		}
+		content += `style ${delegateAddress} fill:${light},color:${dark},stroke:${dark},stroke-width:4px\n`;
+		content += `linkStyle ${linkIndex + internalIdx} stroke:${safeDark},stroke-width:4px\n`;
+		++internalIdx;
 	}
+	content += `style ${safe.address} fill:${safeLight},color:${safeDark},stroke:${safeDark},stroke-width:4px\n`;
 
-	return content;
+	return [content, linkIndex + internalIdx];
 }
 
 function getNames(scdk: SafeCDKit, address: string): string[] {
