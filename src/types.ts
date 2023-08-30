@@ -43,6 +43,11 @@ export const PopulatedSafeSchema = SafeSchema.extend({
 	version: z.string()
 });
 
+export const LabelSchema = z.object({
+	name: z.string(),
+	address: ethAddressSchema
+});
+
 export const ProposalSchema = z.object({
 	title: z.string(),
 	description: z.string().optional(),
@@ -52,7 +57,8 @@ export const ProposalSchema = z.object({
 	function: z.string(),
 	nonce: z.number().optional(),
 	arguments: z.array(z.string()).optional(),
-	safeTxHash: z.string().optional()
+	safeTxHash: z.string().optional(),
+	labels: z.array(LabelSchema).optional()
 });
 
 export const TransactionSchema = z.object({
@@ -105,6 +111,7 @@ export type PopulatedSafe = z.infer<typeof PopulatedSafeSchema>;
 export type Delegate = z.infer<typeof DelegateSchema>;
 export type Proposal = z.infer<typeof ProposalSchema>;
 export type Transaction = z.infer<typeof TransactionSchema>;
+export type Label = z.infer<typeof LabelSchema>;
 
 export function load<T>(fs: CacheFS, zo: z.ZodType<T>, path: string): T {
 	const rawSafe = YAML.parse(fs.read(path));

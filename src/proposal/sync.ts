@@ -7,6 +7,7 @@ import {
 	EOA,
 	EOASchema,
 	ForgeTransaction,
+	Label,
 	load,
 	Manifest,
 	PopulatedSafe,
@@ -73,7 +74,7 @@ function delegateExists(safe: PopulatedSafe, address: string): boolean {
 	return false;
 }
 
-function harvestAllLabels(scdk: SafeCDKit): string {
+function harvestAllLabels(scdk: SafeCDKit, customProposalLabels: Label[] | undefined): string {
 	const eoas = readdirSync('./eoas');
 	const safes = readdirSync('./safes');
 	const labels = [];
@@ -86,6 +87,12 @@ function harvestAllLabels(scdk: SafeCDKit): string {
 		const loadedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safe}`);
 		labels.push(loadedSafe.address);
 		labels.push(`SAFE:${loadedSafe.name}`);
+	}
+	if (customProposalLabels !== undefined) {
+		for (const label of customProposalLabels) {
+			labels.push(label.address);
+			labels.push(label.name);
+		}
 	}
 	return labels.join(',');
 }
@@ -116,7 +123,7 @@ async function syncProposal(
 	let cleanedStdout;
 	let cleanedStderr;
 	try {
-		process.env.SAFECD_SIMULATION_LABELS = harvestAllLabels(scdk);
+		process.env.SAFECD_SIMULATION_LABELS = harvestAllLabels(scdk, proposalConfig.labels);
 		const { error, stdout, stderr } = await exec(command);
 		cleanedStdout = noColor(stdout);
 		cleanedStdout = cleanedStdout.slice(
