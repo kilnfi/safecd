@@ -129,19 +129,19 @@ ${description || ''}
 ### Proposal
 
 \`\`\`yaml
-${YAML.stringify(proposalWithoutMetadata)}
+${YAML.stringify(proposalWithoutMetadata, { lineWidth: 0 })}
 \`\`\`
 
 ### Safe Transaction
 
 \`\`\`yaml
-${YAML.stringify(manifest.safe_transaction)}
+${YAML.stringify(manifest.safe_transaction, { lineWidth: 0 })}
 \`\`\`
 
 ### Safe
 
 \`\`\`yaml
-${YAML.stringify(manifest.safe)}
+${YAML.stringify(manifest.safe, { lineWidth: 0 })}
 \`\`\`
 
 ### Proposal Script
@@ -159,13 +159,13 @@ ${manifest.simulation_output}
 ### Proposal Script Simulation Transactions
 
 \`\`\`yaml
-${YAML.stringify(manifest.simulation_transactions)}
+${YAML.stringify(manifest.simulation_transactions, { lineWidth: 0 })}
 \`\`\`
 
 ### Safe Estimation
 
 \`\`\`yaml
-${YAML.stringify(manifest.safe_estimation)}
+${YAML.stringify(manifest.safe_estimation, { lineWidth: 0 })}
 \`\`\`
 
 `;
@@ -185,13 +185,13 @@ ${description || ''}
 ### Proposal
 
 \`\`\`yaml
-${YAML.stringify(proposalWithoutMetadata)}
+${YAML.stringify(proposalWithoutMetadata, { lineWidth: 0 })}
 \`\`\`
 
 ### Safe
 
 \`\`\`yaml
-${YAML.stringify(manifest.safe)}
+${YAML.stringify(manifest.safe, { lineWidth: 0 })}
 \`\`\`
 
 ### Proposal Script
