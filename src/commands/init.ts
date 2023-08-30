@@ -22,7 +22,8 @@ export default function loadCommand(command: Command): void {
 			writeFileSync(
 				'./safecd.yaml',
 				YAML.stringify({
-					network: options.network
+					network: options.network,
+					title: 'safecd'
 				})
 			);
 			writeFileSync(

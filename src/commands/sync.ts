@@ -1,5 +1,7 @@
 import { Command, Option } from 'commander';
 import { ethers, utils } from 'ethers';
+import { writeFileSync } from 'fs';
+import { promisify } from 'util';
 import { transactionApis } from '../constants';
 import { generateRootReadme } from '../docs/generatedRootReadme';
 import { CacheFS } from '../fs/cacheFs';
@@ -8,6 +10,7 @@ import { checkRequirements } from '../requirements';
 import { getSafeApiKit } from '../safe-api/kit';
 import { syncSafes } from '../safe/sync';
 import { GlobalConfig, GlobalConfigSchema, load, SafeCDKit } from '../types';
+const exec = promisify(require('child_process').exec);
 
 const rpcOption = new Option('--rpc <char>', 'ethereum rpc endpoint').env('RPC');
 rpcOption.mandatory = true;
@@ -105,9 +108,25 @@ export default function loadCommand(command: Command): void {
 			console.log('  ================================================  ');
 			console.log();
 
-			await generateRootReadme(scdk);
-
 			scdk.fs.printDiff();
-			await scdk.fs.commit(scdk.shouldWrite);
+			const result = await scdk.fs.commit(scdk.shouldWrite);
+
+			scdk.fs = new CacheFS();
+			const updatedReadme = await generateRootReadme(scdk);
+			if (updatedReadme !== null) {
+				writeFileSync('./README.md', updatedReadme);
+			}
+			if (result !== null) {
+				if (result.hasChanges) {
+					writeFileSync('COMMIT_MSG', result.commitMsg, { encoding: 'utf8' });
+					await exec(`echo "hasChanges=true" >> $GITHUB_OUTPUT`);
+					console.log('writting "hasChanged=true" ci output variable');
+				}
+				if (result.hasPrComment) {
+					writeFileSync('PR_COMMENT', result.prComment, { encoding: 'utf8' });
+					await exec(`echo "hasPrComment=true" >> $GITHUB_OUTPUT`);
+					console.log('writting "hasPrComment=true" ci output variable');
+				}
+			}
 		});
 }

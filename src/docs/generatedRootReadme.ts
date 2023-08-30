@@ -1,5 +1,5 @@
 import { utils } from 'ethers';
-import { readdirSync, statSync } from 'fs';
+import { readdirSync, readFileSync, statSync } from 'fs';
 import { relative, resolve } from 'path';
 import YAML from 'yaml';
 import {
@@ -25,7 +25,7 @@ const uiByNetwork: { [key: string]: string } = {
 	goerli: 'https://app.safe.global/home?safe=gor'
 };
 
-export async function generateRootReadme(scdk: SafeCDKit): Promise<void> {
+export async function generateRootReadme(scdk: SafeCDKit): Promise<string | null> {
 	let content = `# ${scdk.config.title}
 
 \`\`\`mermaid
@@ -36,7 +36,10 @@ ${generateSafesDiagram(scdk)}
 ${generateSafesDetailsDiagram(scdk)}
 `;
 
-	scdk.fs.write('./README.md', content);
+	if (readFileSync('./README.md', 'utf8') !== content) {
+		return content;
+	}
+	return null;
 }
 
 function generateSafesDetailsDiagram(scdk: SafeCDKit): string {
@@ -56,7 +59,7 @@ ${safe.description ? safe.description : ''}
 \`\`\`mermaid
 %%{init: {'theme': 'dark', "flowchart" : { "curve" : "linear" } } }%%
 flowchart LR
-subgraph ${safe.name}
+subgraph "Safe ${safe.name}"
 direction LR
 ${diagram}
 end
@@ -256,25 +259,32 @@ function getTxExplorerLink(scdk: SafeCDKit, tx: Transaction): string {
 	return `${explorerByNetwork[scdk.network]}/tx/${tx.transactionHash}`;
 }
 
+let namingMap: { [key: string]: string };
+
 function getNameAndType(scdk: SafeCDKit, address: string): string {
-	const eoas = readdirSync('./eoas');
-	for (const eoa of eoas) {
-		const loadedEOA: EOA = load<EOA>(scdk.fs, EOASchema, `./eoas/${eoa}`);
-		if (utils.getAddress(loadedEOA.address) === utils.getAddress(address)) {
-			return `<code><a href="${getAddressExplorerLink(scdk, address)}" target="_blank">eoa@${
-				loadedEOA.name
-			}</a></code>`;
+	if (namingMap === undefined) {
+		namingMap = {};
+		const eoas = readdirSync('./eoas');
+		for (const eoa of eoas) {
+			const loadedEOA: EOA = load<EOA>(scdk.fs, EOASchema, `./eoas/${eoa}`);
+			namingMap[utils.getAddress(loadedEOA.address)] = `<code><a href="${getAddressExplorerLink(
+				scdk,
+				loadedEOA.address
+			)}" target="_blank">eoa@${loadedEOA.name}</a></code>`;
+		}
+
+		const safes = readdirSync('./safes');
+		for (const safeConfig of safes) {
+			const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
+			namingMap[utils.getAddress(safe.address)] = `<code><a href="${getAddressExplorerLink(
+				scdk,
+				safe.address
+			)}" target="_blank">safe@${safe.name}</a></code>`;
 		}
 	}
 
-	const safes = readdirSync('./safes');
-	for (const safeConfig of safes) {
-		const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
-		if (utils.getAddress(safe.address) === utils.getAddress(address)) {
-			return `<code><a href="${getAddressExplorerLink(scdk, address)}" target="_blank">safe@${
-				safe.name
-			}</a></code>`;
-		}
+	if (namingMap[utils.getAddress(address)]) {
+		return namingMap[utils.getAddress(address)];
 	}
 
 	return `<code><a href="${getAddressExplorerLink(scdk, address)}" target="_blank">${address}</a></code>`;

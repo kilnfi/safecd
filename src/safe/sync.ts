@@ -1,4 +1,5 @@
 import { SafeMultisigTransactionListResponse } from '@safe-global/api-kit';
+import axios from 'axios';
 import { utils } from 'ethers';
 import { existsSync, readdirSync } from 'fs';
 import { resolve } from 'path';
@@ -35,6 +36,7 @@ export async function syncSafes(scdk: SafeCDKit): Promise<void> {
 	const safes = readdirSync('./safes');
 	for (const safeConfig of safes) {
 		const safe: Safe = load<Safe>(scdk.fs, SafeSchema, `./safes/${safeConfig}`);
+		safe.address = utils.getAddress(safe.address);
 		const retrievedAddresses = await syncSafe(scdk, safe, `./safes/${safeConfig}`);
 		const populatedSafeYaml = yamlToString(retrievedAddresses[retrievedAddresses.length - 1]);
 		scdk.fs.write(`./safes/${safeConfig}`, populatedSafeYaml);
@@ -120,7 +122,15 @@ async function syncSafeTransactions(
 	safe: PopulatedSafe,
 	scdk: SafeCDKit
 ): Promise<SafeMultisigTransactionListResponse['results']> {
-	return (await scdk.sak.getMultisigTransactions(safe.address)).results;
+	let res = await scdk.sak.getMultisigTransactions(safe.address);
+	let results = [...res.results];
+	while (res.next) {
+		const axiosRes = await axios.get<SafeMultisigTransactionListResponse>(res.next);
+		res = axiosRes.data;
+		results = [...results, ...res.results];
+	}
+
+	return results;
 }
 
 async function syncSafe(scdk: SafeCDKit, safe: Safe, path: string): Promise<Address[]> {

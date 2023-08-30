@@ -5,6 +5,14 @@ import { promisify } from 'util';
 import YAML from 'yaml';
 import { Manifest } from '../types';
 const exec = promisify(require('child_process').exec);
+
+interface CommitResult {
+	commitMsg: string;
+	prComment: string;
+	hasChanges: boolean;
+	hasPrComment: boolean;
+}
+
 export class CacheFS {
 	private edits: { [key: string]: string | null } = {};
 
@@ -42,9 +50,15 @@ export class CacheFS {
 		}
 	}
 
-	async commit(write: boolean): Promise<void> {
+	async commit(write: boolean): Promise<CommitResult | null> {
+		const commitResult: CommitResult = {
+			commitMsg: '',
+			prComment: '',
+			hasChanges: false,
+			hasPrComment: false
+		};
 		if (!write) {
-			return;
+			return null;
 		}
 		let COMMIT_MSG = '';
 		let editionCount = 0;
@@ -73,10 +87,9 @@ export class CacheFS {
 		}
 		if (COMMIT_MSG !== '') {
 			COMMIT_MSG = `create=${creationCount} edit=${editionCount} delete=${deletionCount}\n\n${COMMIT_MSG}\n\n[skip ci]\n`;
-			writeFileSync('COMMIT_MSG', COMMIT_MSG, { encoding: 'utf8' });
+			commitResult.commitMsg = COMMIT_MSG;
 			if (process.env.CI === 'true') {
-				await exec(`echo "hasChanges=true" >> $GITHUB_OUTPUT`);
-				console.log('writting "hasChanged=true" ci output variable');
+				commitResult.hasChanges = true;
 			}
 		} else if (existsSync('COMMIT_MSG')) {
 			unlinkSync('COMMIT_MSG');
@@ -94,11 +107,11 @@ export class CacheFS {
 					);
 					content += `${proposalManifestContent}`;
 				}
-				await exec(`echo "hasPrComment=true" >> $GITHUB_OUTPUT`);
-				writeFileSync('PR_COMMENT', content, { encoding: 'utf8' });
-				console.log('writting "hasPrComment=true" ci output variable');
+				commitResult.prComment = content;
+				commitResult.hasPrComment = true;
 			}
 		}
+		return commitResult;
 	}
 }
 
