@@ -117,7 +117,7 @@ export default function loadCommand(command: Command): void {
 				writeFileSync('./README.md', updatedReadme);
 			}
 			if (result !== null) {
-				if (result.hasChanges) {
+				if (result.hasChanges || updatedReadme !== null) {
 					writeFileSync('COMMIT_MSG', result.commitMsg, { encoding: 'utf8' });
 					await exec(`echo "hasChanges=true" >> $GITHUB_OUTPUT`);
 					console.log('writting "hasChanged=true" ci output variable');
