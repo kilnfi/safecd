@@ -1,6 +1,6 @@
 import { Command, Option } from 'commander';
 import { ethers, utils } from 'ethers';
-import { writeFileSync } from 'fs';
+import { existsSync, unlinkSync, writeFileSync } from 'fs';
 import { promisify } from 'util';
 import { transactionApis } from '../constants';
 import { generateRootReadme } from '../docs/generatedRootReadme';
@@ -117,10 +117,17 @@ export default function loadCommand(command: Command): void {
 				writeFileSync('./README.md', updatedReadme);
 			}
 			if (result !== null) {
-				if (result.hasChanges || updatedReadme !== null) {
-					writeFileSync('COMMIT_MSG', result.commitMsg, { encoding: 'utf8' });
+				if (updatedReadme !== null) {
+					result.commitMsg.edit += 1;
+					result.commitMsg.message += `- edit   README.md\n`;
+				}
+				if (result.commitMsg.create + result.commitMsg.edit + result.commitMsg.delete > 0) {
+					const COMMIT_MSG = `create=${result.commitMsg.create} edit=${result.commitMsg.edit} delete=${result.commitMsg.delete}\n\n${result.commitMsg.message}\n\n[skip ci]\n`;
+					writeFileSync('COMMIT_MSG', COMMIT_MSG, { encoding: 'utf8' });
 					await exec(`echo "hasChanges=true" >> $GITHUB_OUTPUT`);
 					console.log('writting "hasChanged=true" ci output variable');
+				} else if (existsSync('COMMIT_MSG')) {
+					unlinkSync('COMMIT_MSG');
 				}
 				if (result.hasPrComment) {
 					writeFileSync('PR_COMMENT', result.prComment, { encoding: 'utf8' });

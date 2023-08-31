@@ -1,5 +1,5 @@
 import { utils } from 'ethers';
-import { readdirSync, readFileSync, statSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { relative, resolve } from 'path';
 import YAML from 'yaml';
 import {
@@ -36,7 +36,7 @@ ${generateSafesDiagram(scdk)}
 ${generateSafesDetailsDiagram(scdk)}
 `;
 
-	if (readFileSync('./README.md', 'utf8') !== content) {
+	if (!existsSync('./README.md') || readFileSync('./README.md', 'utf8') !== content) {
 		return content;
 	}
 	return null;

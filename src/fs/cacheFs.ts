@@ -6,10 +6,16 @@ import YAML from 'yaml';
 import { Manifest } from '../types';
 const exec = promisify(require('child_process').exec);
 
+interface CommitMessage {
+	create: number;
+	edit: number;
+	delete: number;
+	message: string;
+}
+
 interface CommitResult {
-	commitMsg: string;
+	commitMsg: CommitMessage;
 	prComment: string;
-	hasChanges: boolean;
 	hasPrComment: boolean;
 }
 
@@ -52,9 +58,13 @@ export class CacheFS {
 
 	async commit(write: boolean): Promise<CommitResult | null> {
 		const commitResult: CommitResult = {
-			commitMsg: '',
+			commitMsg: {
+				create: 0,
+				edit: 0,
+				delete: 0,
+				message: ''
+			},
 			prComment: '',
-			hasChanges: false,
 			hasPrComment: false
 		};
 		if (!write) {
@@ -67,32 +77,23 @@ export class CacheFS {
 		for (const [file, content] of Object.entries(this.edits)) {
 			if (content === null) {
 				if (existsSync(file)) {
-					COMMIT_MSG += `- delete ${relative('.', file)}\n`;
-					++deletionCount;
+					commitResult.commitMsg.message += `- delete ${relative('.', file)}\n`;
+					commitResult.commitMsg.delete += 1;
 				}
 				console.log(`deleting ${file}.`);
 				unlinkSync(file);
 			} else {
 				if (!existsSync(file)) {
-					COMMIT_MSG += `- create ${relative('.', file)}\n`;
-					++creationCount;
+					commitResult.commitMsg.message += `- create ${relative('.', file)}\n`;
+					commitResult.commitMsg.create += 1;
 				} else if (readFileSync(file, { encoding: 'utf8' }) !== content) {
-					COMMIT_MSG += `- edit   ${relative('.', file)}\n`;
-					++editionCount;
+					commitResult.commitMsg.message += `- edit   ${relative('.', file)}\n`;
+					commitResult.commitMsg.edit += 1;
 				}
 				console.log(`writting ${file}.`);
 				mkdirSync(dirname(file), { recursive: true });
 				writeFileSync(file, content, { encoding: 'utf8' });
 			}
-		}
-		if (COMMIT_MSG !== '') {
-			COMMIT_MSG = `create=${creationCount} edit=${editionCount} delete=${deletionCount}\n\n${COMMIT_MSG}\n\n[skip ci]\n`;
-			commitResult.commitMsg = COMMIT_MSG;
-			if (process.env.CI === 'true') {
-				commitResult.hasChanges = true;
-			}
-		} else if (existsSync('COMMIT_MSG')) {
-			unlinkSync('COMMIT_MSG');
 		}
 		if (process.env.CI === 'true') {
 			console.log("looking for proposal manifests in './script'");
