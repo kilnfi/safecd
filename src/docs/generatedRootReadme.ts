@@ -25,6 +25,11 @@ const uiByNetwork: { [key: string]: string } = {
 	goerli: 'https://app.safe.global/home?safe=gor'
 };
 
+const safeTxLinkByNetwork: { [key: string]: string } = {
+	mainnet: 'https://app.safe.global/transactions/tx?safe=eth:',
+	goerli: 'https://app.safe.global/transactions/tx?safe=gor:'
+};
+
 export async function generateRootReadme(scdk: SafeCDKit): Promise<string | null> {
 	let content = `# ${scdk.config.title}
 
@@ -88,6 +93,7 @@ ${
 <td>Title</td>
 <td>Description</td>
 <td>Payload</td>
+<td>Safe Tx</td>
 <td>Signers</td>
 <td>Executor</td>
 <td>Tx</td>
@@ -120,6 +126,7 @@ function formatPendingTransactionsTable(scdk: SafeCDKit, safe: PopulatedSafe, tx
 <td>Title</td>
 <td>Description</td>
 <td>Payload</td>
+<td>Safe Tx</td>
 <td>Confirmations</td>
 <td>Signers</td>
 <td>Proposal</td>
@@ -223,6 +230,9 @@ ${YAML.stringify(tx, { lineWidth: 0 })}
 
 
 </details>
+<td>
+<a href=${getSafeTxLink(scdk, tx)}><code>${tx.safeTxHash}</code></a>
+</td>
 </td>
 ${tx.isExecuted ? '' : `<td>${getConfirmationIcons(tx.confirmations.length, safe.threshold)}</td>`}
 <td>${resolveConfirmations(scdk, tx)}</td>
@@ -257,6 +267,10 @@ function getAddressExplorerLink(scdk: SafeCDKit, address: string): string {
 
 function getTxExplorerLink(scdk: SafeCDKit, tx: Transaction): string {
 	return `${explorerByNetwork[scdk.network]}/tx/${tx.transactionHash}`;
+}
+
+function getSafeTxLink(scdk: SafeCDKit, tx: Transaction): string {
+	return `${safeTxLinkByNetwork[scdk.network]}${tx.safe}&id=multisig_${tx.safe}_${tx.safeTxHash}`;
 }
 
 let namingMap: { [key: string]: string };
