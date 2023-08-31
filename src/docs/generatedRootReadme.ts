@@ -383,21 +383,18 @@ function increaseScore(color: string, add: number): string {
 	let g = parseInt(color.slice(3, 5), 16);
 	let b = parseInt(color.slice(5, 7), 16);
 	const score = r + g + b;
-	if (score + add > 765) {
-		return '#ffffff';
-	}
 	const ratio = add / score;
-	r = Math.round(r * (1 + ratio));
-	g = Math.round(g * (1 + ratio));
-	b = Math.round(b * (1 + ratio));
+	r = Math.max(Math.min(Math.round(r * (1 + ratio)), 255), 0);
+	g = Math.max(Math.min(Math.round(g * (1 + ratio)), 255), 0);
+	b = Math.max(Math.min(Math.round(b * (1 + ratio)), 255), 0);
 	return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
 function lightAndDark(address: string): [string, string] {
 	const index = parseInt(utils.getAddress(address).slice(2, 8), 16);
 	const palette = colors[index % colors.length];
-	let lightest = getLightest(palette);
-	let darkest = getDarkest(palette);
+	let lightest = palette[index % palette.length];
+	let darkest = palette[index % palette.length];
 	while (getScore(lightest) - getScore(darkest) < 300) {
 		lightest = increaseScore(lightest, 10);
 		darkest = increaseScore(darkest, -10);
