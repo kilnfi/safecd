@@ -171,7 +171,7 @@ function getProposalOfSafeHashFromDir(
 		const stat = statSync(elementPath);
 		if (stat.isDirectory()) {
 			const proposal = getProposalOfSafeHashFromDir(scdk, safe, tx, elementPath);
-			if (proposal !== null) {
+			if (proposal[1] !== null) {
 				return proposal;
 			}
 		} else if (stat.isFile() && element.endsWith('.proposal.yaml')) {
@@ -434,13 +434,13 @@ function generateSafeDiagram(
 		if (delegateSafe !== null) {
 			content += `${delegateAddress}{{${getNames(scdk, delegateAddress).join(', ')}<br/>type=safe,threshold=${
 				delegateSafe.threshold
-			},label=${delegate.label}<br/>${delegateAddress}}} ---|delegate| ${safe.address}{{${
+			},label=${delegate.label}<br/>${delegateAddress}}} -.-|delegate| ${safe.address}{{${
 				safe.name
 			}<br/>type=safe,threshold=${safe.threshold}<br/>${safe.address}}}\n`;
 		} else {
 			content += `${delegateAddress}(${getNames(scdk, delegateAddress).join(', ')}<br/>type=eoa,label=${
 				delegate.label
-			}<br/>${delegateAddress}) ---|delegate| ${safe.address}{{${safe.name}<br/>type=safe,threshold=${
+			}<br/>${delegateAddress}) -.-|delegate| ${safe.address}{{${safe.name}<br/>type=safe,threshold=${
 				safe.threshold
 			}<br/>${safe.address}}}\n`;
 		}
