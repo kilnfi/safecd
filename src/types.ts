@@ -53,12 +53,19 @@ export const ProposalSchema = z.object({
 	description: z.string().optional(),
 	safe: z.string(),
 	delegate: ethAddressSchema,
-	proposal: z.string(),
-	function: z.string(),
+	proposal: z.string().optional(),
+	function: z.string().optional(),
+	childOf: z
+		.object({
+			safe: z.string(),
+			hash: z.string()
+		})
+		.optional(),
 	nonce: z.number().optional(),
 	arguments: z.array(z.string()).optional(),
 	safeTxHash: z.string().optional(),
-	labels: z.array(LabelSchema).optional()
+	labels: z.array(LabelSchema).optional(),
+	createChildProposals: z.boolean().optional()
 });
 
 export const TransactionSchema = z.object({

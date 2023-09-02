@@ -34,7 +34,7 @@ export async function generateRootReadme(scdk: SafeCDKit): Promise<string | null
 	let content = `# ${scdk.config.title}
 
 \`\`\`mermaid
-%%{init: {'theme': 'dark', "flowchart" : { "curve" : "linear" } } }%%
+%%{init: {'theme': 'dark', "flowchart" : { "curve" : "basis" } } }%%
 ${generateSafesDiagram(scdk)}
 \`\`\`	
 
@@ -62,7 +62,7 @@ function generateSafesDetailsDiagram(scdk: SafeCDKit): string {
 ${safe.description ? safe.description : ''}
 
 \`\`\`mermaid
-%%{init: {'theme': 'dark', "flowchart" : { "curve" : "linear" } } }%%
+%%{init: {'theme': 'dark', "flowchart" : { "curve" : "basis" } } }%%
 flowchart LR
 subgraph "Safe ${safe.name}"
 direction LR
@@ -158,18 +158,14 @@ ${tx.dataDecoded.method}(
 	return '';
 }
 
-function getProposalOfSafeHash(
-	scdk: SafeCDKit,
-	safe: PopulatedSafe,
-	tx: Transaction
-): [string | null, Proposal | null] {
-	return getProposalOfSafeHashFromDir(scdk, safe, tx, './script');
+function getProposalOfSafeHash(scdk: SafeCDKit, safe: PopulatedSafe, hash: string): [string | null, Proposal | null] {
+	return getProposalOfSafeHashFromDir(scdk, safe, hash, './script');
 }
 
 function getProposalOfSafeHashFromDir(
 	scdk: SafeCDKit,
 	safe: PopulatedSafe,
-	tx: Transaction,
+	hash: string,
 	path: string
 ): [string | null, Proposal | null] {
 	const elements = readdirSync(path);
@@ -177,13 +173,13 @@ function getProposalOfSafeHashFromDir(
 		const elementPath = resolve(path, element);
 		const stat = statSync(elementPath);
 		if (stat.isDirectory()) {
-			const proposal = getProposalOfSafeHashFromDir(scdk, safe, tx, elementPath);
+			const proposal = getProposalOfSafeHashFromDir(scdk, safe, hash, elementPath);
 			if (proposal[1] !== null) {
 				return proposal;
 			}
 		} else if (stat.isFile() && element.endsWith('.proposal.yaml')) {
 			const proposal: Proposal = load<Proposal>(scdk.fs, ProposalSchema, elementPath);
-			if (proposal.safeTxHash && proposal.safeTxHash?.toLowerCase() === tx.safeTxHash.toLowerCase()) {
+			if (proposal.safeTxHash && proposal.safeTxHash?.toLowerCase() === hash.toLowerCase()) {
 				return [relative(resolve('.'), elementPath), proposal];
 			}
 		}
@@ -194,7 +190,7 @@ function getProposalOfSafeHashFromDir(
 function formatSafeTransactions(scdk: SafeCDKit, safe: PopulatedSafe, txs: Transaction[]): string {
 	let content = '';
 	for (const tx of txs) {
-		const [proposalPath, proposal] = getProposalOfSafeHash(scdk, safe, tx);
+		const [proposalPath, proposal] = getProposalOfSafeHash(scdk, safe, tx.safeTxHash);
 		content += `
 <tr>
 <td>${tx.nonce}</td>
@@ -232,6 +228,7 @@ ${YAML.stringify(tx, { lineWidth: 0 })}
 </details>
 <td>
 <a href=${getSafeTxLink(scdk, tx)}><code>${tx.safeTxHash}</code></a>
+${proposal ? resolveChildProposals(scdk, proposal, 1) : ''}
 </td>
 </td>
 ${tx.isExecuted ? '' : `<td>${getConfirmationIcons(tx.confirmations.length, safe.threshold)}</td>`}
@@ -243,6 +240,23 @@ ${tx.isExecuted ? `<td><a target="_blank" href="${getTxExplorerLink(scdk, tx)}">
 `;
 	}
 	return content;
+}
+
+function resolveChildProposals(scdk: SafeCDKit, proposal: Proposal, depth: number): string {
+	if (proposal.childOf) {
+		const parentSafe = getSafe(proposal.childOf.safe, scdk);
+		if (parentSafe) {
+			const [, parentProposal] = getProposalOfSafeHash(scdk, parentSafe, proposal.childOf.hash);
+			return `<br/>${'&nbsp;&nbsp;'.repeat(depth)}↳ approves <a href=${getParentSafeTxLink(
+				scdk,
+				proposal.childOf.safe,
+				proposal.childOf.hash
+			)}><code>${proposal.childOf.hash}</code></a>${
+				parentProposal ? resolveChildProposals(scdk, parentProposal, depth + 1) : ''
+			}`;
+		}
+	}
+	return '';
 }
 
 function getConfirmationIcons(confirmationCount: number, threshold: number): string {
@@ -267,6 +281,10 @@ function getAddressExplorerLink(scdk: SafeCDKit, address: string): string {
 
 function getTxExplorerLink(scdk: SafeCDKit, tx: Transaction): string {
 	return `${explorerByNetwork[scdk.network]}/tx/${tx.transactionHash}`;
+}
+
+function getParentSafeTxLink(scdk: SafeCDKit, safe: string, hash: string): string {
+	return `${safeTxLinkByNetwork[scdk.network]}${safe}&id=multisig_${safe}_${hash}`;
 }
 
 function getSafeTxLink(scdk: SafeCDKit, tx: Transaction): string {
@@ -312,6 +330,9 @@ function getAllSafeTransactions(scdk: SafeCDKit, safe: PopulatedSafe): Transacti
 }
 
 function getAllSafeTransactionsInDir(scdk: SafeCDKit, safe: PopulatedSafe, path: string): Transaction[] {
+	if (!existsSync(path)) {
+		return [];
+	}
 	const elements = readdirSync(path);
 	let transactions: Transaction[] = [];
 	for (const element of elements) {
@@ -346,63 +367,25 @@ function generateSafesDiagram(scdk: SafeCDKit): string {
 
 var colors = require('nice-color-palettes');
 
-function getLightest(palette: string[]): string {
-	let lightest = palette[0];
-	let lighestsScore = 0;
-	for (const color of palette) {
-		const score =
-			parseInt(color.slice(1, 3), 16) + parseInt(color.slice(3, 5), 16) + parseInt(color.slice(5, 7), 16);
-		if (score > lighestsScore) {
-			lighestsScore = score;
-			lightest = color;
-		}
-	}
-	return lightest;
-}
-
-function getDarkest(palette: string[]): string {
-	let darkest = palette[0];
-	let darkestScore = Infinity;
-	for (const color of palette) {
-		const score =
-			parseInt(color.slice(1, 3), 16) + parseInt(color.slice(3, 5), 16) + parseInt(color.slice(5, 7), 16);
-		if (score < darkestScore) {
-			darkestScore = score;
-			darkest = color;
-		}
-	}
-	return darkest;
-}
-
 function getScore(color: string): number {
 	return parseInt(color.slice(1, 3), 16) + parseInt(color.slice(3, 5), 16) + parseInt(color.slice(5, 7), 16);
 }
 
-function increaseScore(color: string, add: number): string {
-	let r = parseInt(color.slice(1, 3), 16);
-	let g = parseInt(color.slice(3, 5), 16);
-	let b = parseInt(color.slice(5, 7), 16);
-	const score = r + g + b;
-	const ratio = add / score;
-	r = Math.max(Math.min(Math.round(r * (1 + ratio)), 255), 0);
-	g = Math.max(Math.min(Math.round(g * (1 + ratio)), 255), 0);
-	b = Math.max(Math.min(Math.round(b * (1 + ratio)), 255), 0);
-	return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-}
+const Color = require('color');
 
 function lightAndDark(address: string): [string, string] {
 	const index = parseInt(utils.getAddress(address).slice(2, 8), 16);
 	const palette = colors[index % colors.length];
-	let lightest = palette[index % palette.length];
-	let darkest = palette[index % palette.length];
-	while (getScore(lightest) - getScore(darkest) < 300) {
-		lightest = increaseScore(lightest, 10);
-		darkest = increaseScore(darkest, -10);
+	let lightest = Color(palette[index % palette.length]).lightness(10);
+	let darkest = Color(palette[index % palette.length]);
+	while (Math.abs(getScore(lightest.hex()) - getScore(darkest.hex())) < 200) {
+		lightest = lightest.lighten(0.01);
+		darkest = darkest.darken(0.01);
 	}
 	if (parseInt(utils.getAddress(address).slice(8, 10), 16) % 2 == 0) {
-		return [lightest, darkest];
+		return [lightest.hex(), darkest.hex()];
 	}
-	return [darkest, lightest];
+	return [darkest.hex(), lightest.hex()];
 }
 
 function generateSafeDiagram(
@@ -425,16 +408,16 @@ function generateSafeDiagram(
 		if (ownerSafe !== null) {
 			content += `${owner}{{${getNames(scdk, owner).join(', ')}<br/>type=safe,threshold=${
 				ownerSafe.threshold
-			}<br/>${owner}}} ---|owner| ${safe.address}{{${safe.name}<br/>type=safe,threshold=${safe.threshold}<br/>${
-				safe.address
-			}}}\n`;
+			}<br/>${owner}}} =====>|owner| ${safe.address}{{${safe.name}<br/>type=safe,threshold=${
+				safe.threshold
+			}<br/>${safe.address}}}\n`;
 		} else {
-			content += `${owner}(${getNames(scdk, owner).join(', ')}<br/>type=eoa<br/>${owner}) ---|owner| ${
+			content += `${owner}(${getNames(scdk, owner).join(', ')}<br/>type=eoa<br/>${owner}) =====>|owner| ${
 				safe.address
 			}{{${safe.name}<br/>type=safe,threshold=${safe.threshold}<br/>${safe.address}}}\n`;
 		}
 		content += `style ${owner} fill:${light},color:${dark},stroke:${dark},stroke-width:4px\n`;
-		content += `linkStyle ${linkIndex + internalIdx} stroke:${safeDark},stroke-width:4px\n`;
+		content += `linkStyle ${linkIndex + internalIdx} stroke:${dark},stroke-width:4px\n`;
 		++internalIdx;
 	}
 
@@ -445,18 +428,18 @@ function generateSafeDiagram(
 		if (delegateSafe !== null) {
 			content += `${delegateAddress}{{${getNames(scdk, delegateAddress).join(', ')}<br/>type=safe,threshold=${
 				delegateSafe.threshold
-			},label=${delegate.label}<br/>${delegateAddress}}} -.-|delegate| ${safe.address}{{${
+			},label=${delegate.label}<br/>${delegateAddress}}} -...->|delegate| ${safe.address}{{${
 				safe.name
 			}<br/>type=safe,threshold=${safe.threshold}<br/>${safe.address}}}\n`;
 		} else {
 			content += `${delegateAddress}(${getNames(scdk, delegateAddress).join(', ')}<br/>type=eoa,label=${
 				delegate.label
-			}<br/>${delegateAddress}) -.-|delegate| ${safe.address}{{${safe.name}<br/>type=safe,threshold=${
+			}<br/>${delegateAddress}) -...->|delegate| ${safe.address}{{${safe.name}<br/>type=safe,threshold=${
 				safe.threshold
 			}<br/>${safe.address}}}\n`;
 		}
 		content += `style ${delegateAddress} fill:${light},color:${dark},stroke:${dark},stroke-width:4px\n`;
-		content += `linkStyle ${linkIndex + internalIdx} stroke:${safeDark},stroke-width:4px\n`;
+		content += `linkStyle ${linkIndex + internalIdx} stroke:${dark},stroke-width:4px\n`;
 		++internalIdx;
 	}
 	content += `style ${safe.address} fill:${safeLight},color:${safeDark},stroke:${safeDark},stroke-width:4px\n`;
