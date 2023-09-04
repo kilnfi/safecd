@@ -133,6 +133,18 @@ ${description || ''}
 ${YAML.stringify(proposalWithoutMetadata, { lineWidth: 0 })}
 \`\`\`
 
+${
+	manifest.raw_proposal.childOf
+		? `
+### Parent Proposal
+
+\`\`\`yaml
+${YAML.stringify(manifest.raw_proposal.childOf, { lineWidth: 0 })}
+\`\`\`
+`
+		: ''
+}
+
 ### Safe Transaction
 
 \`\`\`yaml
@@ -145,6 +157,9 @@ ${YAML.stringify(manifest.safe_transaction, { lineWidth: 0 })}
 ${YAML.stringify(manifest.safe, { lineWidth: 0 })}
 \`\`\`
 
+${
+	!manifest.raw_proposal.childOf
+		? `
 ### Proposal Script
 
 \`\`\`solidity
@@ -162,6 +177,9 @@ ${manifest.simulation_output}
 \`\`\`yaml
 ${YAML.stringify(manifest.simulation_transactions, { lineWidth: 0 })}
 \`\`\`
+`
+		: ''
+}
 
 ### Safe Estimation
 
@@ -195,6 +213,9 @@ ${YAML.stringify(proposalWithoutMetadata, { lineWidth: 0 })}
 ${YAML.stringify(manifest.safe, { lineWidth: 0 })}
 \`\`\`
 
+${
+	!manifest.raw_proposal.childOf
+		? `
 ### Proposal Script
 
 \`\`\`solidity
@@ -207,30 +228,39 @@ ${manifest.raw_script}
 ${manifest.simulation_output}
 \`\`\`
 
-### Proposal Script Simulation Error Output
+### Proposal Script Simulation Transactions
 
+\`\`\`yaml
+${YAML.stringify(manifest.simulation_transactions, { lineWidth: 0 })}
 \`\`\`
-${manifest.simulation_error_output}
-\`\`\`
+`
+		: ''
+}
 
 `;
 	}
 }
 
 function gatherProposalManifests(): string[] {
-	return gatherProposalManifestsInDir(resolve('./script'));
+	const [manifests, childManifests] = gatherProposalManifestsInDir(resolve('./script'));
+	return [...manifests, ...childManifests];
 }
 
-function gatherProposalManifestsInDir(path: string): string[] {
+function gatherProposalManifestsInDir(path: string): [string[], string[]] {
 	const elements = readdirSync(path);
 	let manifests: string[] = [];
+	let childManifests: string[] = [];
 	for (const element of elements) {
-		if (element.endsWith('.proposal.manifest.yaml')) {
+		if (element.endsWith('.child.proposal.manifest.yaml')) {
+			childManifests.push(relative(resolve('.'), resolve(path, element)));
+		} else if (element.endsWith('.proposal.manifest.yaml')) {
 			manifests.push(relative(resolve('.'), resolve(path, element)));
 		}
 		if (statSync(resolve(path, element)).isDirectory()) {
-			manifests = [...manifests, ...gatherProposalManifestsInDir(resolve(path, element))];
+			const [recursiveManifests, recursiveChildManifests] = gatherProposalManifestsInDir(resolve(path, element));
+			manifests = [...manifests, ...recursiveManifests];
+			childManifests = [...childManifests, ...recursiveChildManifests];
 		}
 	}
-	return manifests;
+	return [manifests, childManifests];
 }
