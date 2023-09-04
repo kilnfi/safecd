@@ -1,12 +1,16 @@
 import SafeApiKit, { ProposeTransactionProps } from '@safe-global/api-kit';
 import { ethers, utils } from 'ethers';
+import { readFileSync } from 'fs';
 import YAML from 'yaml';
 import { z } from 'zod';
-import { CacheFS } from './fs/cacheFs';
+import { State } from './state';
 
-const ethAddressSchema = z.string().refine(value => utils.isAddress(value), {
-	message: 'Provided address is invalid. Please insure you have typed correctly.'
-});
+const ethAddressSchema = z
+	.string()
+	.refine(value => utils.isAddress(value), {
+		message: 'Provided address is invalid. Please insure you have typed correctly.'
+	})
+	.transform(value => utils.getAddress(value));
 
 export const GlobalConfigSchema = z.object({
 	network: z.string(),
@@ -19,9 +23,12 @@ const AddressSchema = z.object({
 	address: ethAddressSchema
 });
 
-export const SafeSchema = AddressSchema.extend({
-	type: z.literal('safe'),
-	description: z.string().optional()
+export const NotificationSchema = z.object({
+	slack: z
+		.object({
+			channels: z.array(z.string())
+		})
+		.optional()
 });
 
 export const EOASchema = AddressSchema.extend({
@@ -33,6 +40,17 @@ export const DelegateSchema = z.object({
 	delegate: ethAddressSchema,
 	delegator: ethAddressSchema,
 	label: z.string()
+});
+
+export const SafeSchema = AddressSchema.extend({
+	type: z.literal('safe'),
+	description: z.string().optional(),
+	notifications: NotificationSchema.optional(),
+	owners: z.array(ethAddressSchema).optional(),
+	delegates: z.array(DelegateSchema).optional(),
+	threshold: z.number().optional(),
+	nonce: z.number().optional(),
+	version: z.string().optional()
 });
 
 export const PopulatedSafeSchema = SafeSchema.extend({
@@ -48,10 +66,22 @@ export const LabelSchema = z.object({
 	address: ethAddressSchema
 });
 
+export const NotificationTrackingSchema = z.object({
+	slack: z
+		.array(
+			z.object({
+				channel: z.string(),
+				message: z.string().optional(),
+				hash: z.string().optional()
+			})
+		)
+		.optional()
+});
+
 export const ProposalSchema = z.object({
 	title: z.string(),
 	description: z.string().optional(),
-	safe: z.string(),
+	safe: ethAddressSchema,
 	delegate: ethAddressSchema,
 	proposal: z.string().optional(),
 	function: z.string().optional(),
@@ -65,7 +95,8 @@ export const ProposalSchema = z.object({
 	arguments: z.array(z.string()).optional(),
 	safeTxHash: z.string().optional(),
 	labels: z.array(LabelSchema).optional(),
-	createChildProposals: z.boolean().optional()
+	createChildProposals: z.boolean().optional(),
+	notifications: NotificationTrackingSchema.optional()
 });
 
 export const TransactionSchema = z.object({
@@ -119,9 +150,11 @@ export type Delegate = z.infer<typeof DelegateSchema>;
 export type Proposal = z.infer<typeof ProposalSchema>;
 export type Transaction = z.infer<typeof TransactionSchema>;
 export type Label = z.infer<typeof LabelSchema>;
+export type NotificationTracking = z.infer<typeof NotificationTrackingSchema>;
+export type Notification = z.infer<typeof NotificationSchema>;
 
-export function load<T>(fs: CacheFS, zo: z.ZodType<T>, path: string): T {
-	const rawSafe = YAML.parse(fs.read(path));
+export function loadEntity<T>(zo: z.ZodType<T>, path: string): T {
+	const rawSafe = YAML.parse(readFileSync(path, 'utf8'));
 	const res = zo.safeParse(rawSafe);
 	if (!res.success) {
 		console.error(`error${res.error.errors.length > 1 ? 's' : ''} parsing ${path}:`);
@@ -146,10 +179,10 @@ export interface SafeCDKit {
 	shouldWrite: boolean;
 	rpcUrl: string;
 	safeUrl: string;
-	fs: CacheFS;
 	network: string;
 	network_id: number;
 	config: GlobalConfig;
+	state: State;
 }
 
 export interface Manifest {

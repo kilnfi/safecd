@@ -1,19 +1,7 @@
 import { utils } from 'ethers';
-import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
-import { relative, resolve } from 'path';
+import { existsSync, readFileSync } from 'fs';
 import YAML from 'yaml';
-import {
-	EOA,
-	EOASchema,
-	load,
-	PopulatedSafe,
-	PopulatedSafeSchema,
-	Proposal,
-	ProposalSchema,
-	SafeCDKit,
-	Transaction,
-	TransactionSchema
-} from '../types';
+import { EOA, PopulatedSafe, Proposal, SafeCDKit, Transaction } from '../types';
 
 const explorerByNetwork: { [key: string]: string } = {
 	mainnet: 'https://etherscan.io',
@@ -49,9 +37,8 @@ ${generateSafesDetailsDiagram(scdk)}
 
 function generateSafesDetailsDiagram(scdk: SafeCDKit): string {
 	let content = '';
-	const safes = readdirSync('./safes');
-	for (const safeConfig of safes) {
-		const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
+	for (let safeIdx = 0; safeIdx < scdk.state.safes.length; ++safeIdx) {
+		const safe: PopulatedSafe = scdk.state.safes[safeIdx].entity as PopulatedSafe;
 		const safeTransactions: Transaction[] = getAllSafeTransactions(scdk, safe);
 		const [diagram] = generateSafeDiagram(scdk, safe, 0, {});
 		content += `
@@ -158,39 +145,14 @@ ${tx.dataDecoded.method}(
 	return '';
 }
 
-function getProposalOfSafeHash(scdk: SafeCDKit, safe: PopulatedSafe, hash: string): [string | null, Proposal | null] {
-	return getProposalOfSafeHashFromDir(scdk, safe, hash, './script');
-}
-
-function getProposalOfSafeHashFromDir(
-	scdk: SafeCDKit,
-	safe: PopulatedSafe,
-	hash: string,
-	path: string
-): [string | null, Proposal | null] {
-	const elements = readdirSync(path);
-	for (const element of elements) {
-		const elementPath = resolve(path, element);
-		const stat = statSync(elementPath);
-		if (stat.isDirectory()) {
-			const proposal = getProposalOfSafeHashFromDir(scdk, safe, hash, elementPath);
-			if (proposal[1] !== null) {
-				return proposal;
-			}
-		} else if (stat.isFile() && element.endsWith('.proposal.yaml')) {
-			const proposal: Proposal = load<Proposal>(scdk.fs, ProposalSchema, elementPath);
-			if (proposal.safeTxHash && proposal.safeTxHash?.toLowerCase() === hash.toLowerCase()) {
-				return [relative(resolve('.'), elementPath), proposal];
-			}
-		}
-	}
-	return [null, null];
+function getProposalOfSafeHash(scdk: SafeCDKit, hash: string): [string | null, Proposal | null] {
+	return [scdk.state.getProposalPathByHash(hash), scdk.state.getProposalByHash(hash)];
 }
 
 function formatSafeTransactions(scdk: SafeCDKit, safe: PopulatedSafe, txs: Transaction[]): string {
 	let content = '';
 	for (const tx of txs) {
-		const [proposalPath, proposal] = getProposalOfSafeHash(scdk, safe, tx.safeTxHash);
+		const [proposalPath, proposal] = getProposalOfSafeHash(scdk, tx.safeTxHash);
 		content += `
 <tr>
 <td>${tx.nonce}</td>
@@ -246,7 +208,7 @@ function resolveChildProposals(scdk: SafeCDKit, proposal: Proposal, depth: numbe
 	if (proposal.childOf) {
 		const parentSafe = getSafe(proposal.childOf.safe, scdk);
 		if (parentSafe) {
-			const [, parentProposal] = getProposalOfSafeHash(scdk, parentSafe, proposal.childOf.hash);
+			const [, parentProposal] = getProposalOfSafeHash(scdk, proposal.childOf.hash);
 			return `<br/>${'&nbsp;&nbsp;'.repeat(depth)}↳ approves <a href=${getParentSafeTxLink(
 				scdk,
 				proposal.childOf.safe,
@@ -296,18 +258,16 @@ let namingMap: { [key: string]: string };
 function getNameAndType(scdk: SafeCDKit, address: string): string {
 	if (namingMap === undefined) {
 		namingMap = {};
-		const eoas = readdirSync('./eoas');
-		for (const eoa of eoas) {
-			const loadedEOA: EOA = load<EOA>(scdk.fs, EOASchema, `./eoas/${eoa}`);
+		for (let eoaIdx = 0; eoaIdx < scdk.state.eoas.length; ++eoaIdx) {
+			const loadedEOA: EOA = scdk.state.eoas[eoaIdx].entity as EOA;
 			namingMap[utils.getAddress(loadedEOA.address)] = `<code><a href="${getAddressExplorerLink(
 				scdk,
 				loadedEOA.address
 			)}" target="_blank">eoa@${loadedEOA.name}</a></code>`;
 		}
 
-		const safes = readdirSync('./safes');
-		for (const safeConfig of safes) {
-			const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
+		for (let safeIdx = 0; safeIdx < scdk.state.safes.length; ++safeIdx) {
+			const safe: PopulatedSafe = scdk.state.safes[safeIdx].entity as PopulatedSafe;
 			namingMap[utils.getAddress(safe.address)] = `<code><a href="${getAddressExplorerLink(
 				scdk,
 				safe.address
@@ -323,40 +283,17 @@ function getNameAndType(scdk: SafeCDKit, address: string): string {
 }
 
 function getAllSafeTransactions(scdk: SafeCDKit, safe: PopulatedSafe): Transaction[] {
-	const path = `./transactions`;
-	return getAllSafeTransactionsInDir(scdk, safe, path).sort((a: Transaction, b: Transaction) =>
-		b.submissionDate.localeCompare(a.submissionDate)
-	);
-}
-
-function getAllSafeTransactionsInDir(scdk: SafeCDKit, safe: PopulatedSafe, path: string): Transaction[] {
-	if (!existsSync(path)) {
-		return [];
-	}
-	const elements = readdirSync(path);
-	let transactions: Transaction[] = [];
-	for (const element of elements) {
-		const elementPath = resolve(path, element);
-		const stat = statSync(elementPath);
-		if (stat.isDirectory()) {
-			transactions = transactions.concat(getAllSafeTransactionsInDir(scdk, safe, elementPath));
-		} else if (stat.isFile() && element.endsWith('.yaml')) {
-			const tx: Transaction = load<Transaction>(scdk.fs, TransactionSchema, elementPath);
-			if (utils.getAddress(tx.safe) === utils.getAddress(safe.address)) {
-				transactions.push(tx);
-			}
-		}
-	}
-	return transactions;
+	return scdk.state.transactionBySafe[utils.getAddress(safe.address)]
+		.map(txIndex => scdk.state.transactions[txIndex].entity as Transaction)
+		.sort((a: Transaction, b: Transaction) => b.submissionDate.localeCompare(a.submissionDate));
 }
 
 function generateSafesDiagram(scdk: SafeCDKit): string {
 	let content = 'flowchart LR\nsubgraph Overview\ndirection LR\n';
 	const done = {};
-	const safes = readdirSync('./safes');
 	let index = 0;
-	for (const safeConfig of safes) {
-		const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
+	for (let safeIndex = 0; safeIndex < scdk.state.safes.length; ++safeIndex) {
+		const safe: PopulatedSafe = scdk.state.safes[safeIndex].entity as PopulatedSafe;
 		const [res, newIndex] = generateSafeDiagram(scdk, safe, index, done);
 		content += res;
 		index = newIndex;
@@ -449,19 +386,15 @@ function generateSafeDiagram(
 
 function getNames(scdk: SafeCDKit, address: string): string[] {
 	let names = [];
-	const eoas = readdirSync('./eoas');
-	for (const eoa of eoas) {
-		const loadedEOA: EOA = load<EOA>(scdk.fs, EOASchema, `./eoas/${eoa}`);
-		if (utils.getAddress(loadedEOA.address) === utils.getAddress(address)) {
-			names.push(loadedEOA.name);
+	for (const eoa of scdk.state.eoas) {
+		if (utils.getAddress(eoa.entity.address) === utils.getAddress(address)) {
+			names.push(eoa.entity.name);
 		}
 	}
 
-	const safes = readdirSync('./safes');
-	for (const safeConfig of safes) {
-		const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
-		if (utils.getAddress(safe.address) === utils.getAddress(address)) {
-			names.push(safe.name);
+	for (const safeConfig of scdk.state.safes) {
+		if (utils.getAddress(safeConfig.entity.address) === utils.getAddress(address)) {
+			names.push(safeConfig.entity.name);
 		}
 	}
 
@@ -469,12 +402,5 @@ function getNames(scdk: SafeCDKit, address: string): string[] {
 }
 
 function getSafe(address: string, scdk: SafeCDKit): PopulatedSafe | null {
-	const safes = readdirSync('./safes');
-	for (const safeConfig of safes) {
-		const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
-		if (utils.getAddress(safe.address) === utils.getAddress(address)) {
-			return safe;
-		}
-	}
-	return null;
+	return scdk.state.getSafeByAddress(address);
 }

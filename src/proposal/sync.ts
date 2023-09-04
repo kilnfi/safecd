@@ -1,53 +1,38 @@
 import { utils } from 'ethers';
 import { Interface } from 'ethers/lib/utils';
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
-import { basename, resolve } from 'path';
+import { readFileSync, writeFileSync } from 'fs';
+import { basename, dirname, resolve } from 'path';
 import { promisify } from 'util';
 import { getSafeKit } from '../safe-api/kit';
-import {
-	EOA,
-	EOASchema,
-	ForgeTransaction,
-	Label,
-	load,
-	Manifest,
-	PopulatedSafe,
-	PopulatedSafeSchema,
-	Proposal,
-	ProposalSchema,
-	SafeCDKit
-} from '../types';
+import { ForgeTransaction, Label, Manifest, PopulatedSafe, Proposal, SafeCDKit } from '../types';
 import { whereBin } from '../utils/binExists';
 import { noColor } from '../utils/noColor';
 import { yamlToString } from '../utils/yamlToString';
 const exec = promisify(require('child_process').exec);
 
 export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
-	return syncProposalsDir(scdk, resolve('./script'));
-}
-
-async function syncProposalsDir(scdk: SafeCDKit, path: string): Promise<boolean> {
-	const elements = readdirSync(path);
 	let hasProposedOne = false;
-	for (const element of elements) {
-		const elementPath = resolve(path, element);
-		const stat = statSync(elementPath);
-		if (stat.isDirectory()) {
-			if (await syncProposalsDir(scdk, elementPath)) {
-				hasProposedOne = true;
-			}
-		} else if (stat.isFile() && element.endsWith('.proposal.yaml') && !element.endsWith('.child.proposal.yaml')) {
-			const prefix = element.slice(0, element.indexOf('.proposal.yaml'));
-			const proposals = await syncProposal(scdk, path, prefix, element);
+	for (let proposalIdx = 0; proposalIdx < scdk.state.proposals.length; ++proposalIdx) {
+		const proposal = scdk.state.proposals[proposalIdx].entity;
+		if (proposal.childOf === undefined) {
+			const fileName = basename(scdk.state.proposals[proposalIdx].path);
+			const prefix = fileName.slice(0, fileName.indexOf('.proposal.yaml'));
+			const path = dirname(scdk.state.proposals[proposalIdx].path);
+			const proposals = await syncProposal(scdk, proposal, path, prefix, fileName);
 			for (const [proposal, manifest, prefixToUse, hasProposed] of proposals) {
 				if (manifest !== null) {
 					const manifestYaml = yamlToString(manifest);
 					console.log(`writting manifest ${resolve(path, `${prefixToUse}.proposal.manifest.yaml`)}`);
 					writeFileSync(resolve(path, `${prefixToUse}.proposal.manifest.yaml`), manifestYaml);
-					const proposalYaml = yamlToString(proposal);
-					scdk.fs.write(resolve(path, `${prefixToUse}.proposal.yaml`), proposalYaml);
+					const proposalPath = resolve(path, `${prefixToUse}.proposal.yaml`);
+					const proposalIndex = await scdk.state.proposalExists(proposalPath);
+					if (proposalIndex >= 0) {
+						await scdk.state.writeProposal(proposalIndex, proposal);
+					} else {
+						await scdk.state.createProposal(proposalPath, proposal);
+					}
 				}
-				console.log(`synced proposal ${resolve(path, element)}`);
+				console.log(`synced proposal ${resolve(path, fileName)}`);
 				if (hasProposed) {
 					hasProposedOne = true;
 				}
@@ -55,17 +40,6 @@ async function syncProposalsDir(scdk: SafeCDKit, path: string): Promise<boolean>
 		}
 	}
 	return hasProposedOne;
-}
-
-async function getSafeByName(scdk: SafeCDKit, name: string): Promise<PopulatedSafe | null> {
-	const safes = readdirSync('./safes');
-	for (const safeConfig of safes) {
-		const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
-		if (safe.name === name) {
-			return safe;
-		}
-	}
-	return null;
 }
 
 function delegateExists(safe: PopulatedSafe, address: string): boolean {
@@ -78,18 +52,14 @@ function delegateExists(safe: PopulatedSafe, address: string): boolean {
 }
 
 function harvestAllLabels(scdk: SafeCDKit, customProposalLabels: Label[] | undefined): string {
-	const eoas = readdirSync('./eoas');
-	const safes = readdirSync('./safes');
 	const labels = [];
-	for (const eoa of eoas) {
-		const loadedEOA = load<EOA>(scdk.fs, EOASchema, `./eoas/${eoa}`);
-		labels.push(loadedEOA.address);
-		labels.push(`EOA:${loadedEOA.name}`);
+	for (const eoa of scdk.state.eoas) {
+		labels.push(eoa.entity.address);
+		labels.push(`EOA:${eoa.entity.name}`);
 	}
-	for (const safe of safes) {
-		const loadedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safe}`);
-		labels.push(loadedSafe.address);
-		labels.push(`SAFE:${loadedSafe.name}`);
+	for (const safe of scdk.state.safes) {
+		labels.push(safe.entity.address);
+		labels.push(`SAFE:${safe.entity.name}`);
 	}
 	if (customProposalLabels !== undefined) {
 		for (const label of customProposalLabels) {
@@ -105,34 +75,21 @@ async function isEOA(address: string, scdk: SafeCDKit): Promise<boolean> {
 	return code === '0x';
 }
 
-async function getSafe(address: string, scdk: SafeCDKit): Promise<PopulatedSafe | null> {
-	if (existsSync('./safes')) {
-		const safes = readdirSync('./safes');
-		for (const safeConfig of safes) {
-			const safe: PopulatedSafe = load<PopulatedSafe>(scdk.fs, PopulatedSafeSchema, `./safes/${safeConfig}`);
-			if (utils.getAddress(safe.address) === utils.getAddress(address)) {
-				return safe;
-			}
-		}
-	}
-	return null;
-}
-
 async function syncProposal(
 	scdk: SafeCDKit,
+	proposalConfig: Proposal,
 	context: string,
 	prefix: string,
 	proposal: string
 ): Promise<[Proposal, Manifest | null, string, boolean][]> {
-	const proposalConfig: Proposal = load<Proposal>(scdk.fs, ProposalSchema, resolve(context, proposal));
 	if (proposalConfig.safeTxHash) {
 		return [[proposalConfig, null, prefix, false]];
 	}
 	if (proposalConfig.childOf) {
-		const safeName = proposalConfig.safe;
-		const safe = await getSafeByName(scdk, safeName);
+		const safeAddress = proposalConfig.safe;
+		const safe = scdk.state.getSafeByAddress(safeAddress);
 		if (safe === null) {
-			throw new Error(`Safe ${safeName} not found`);
+			throw new Error(`Safe ${safeAddress} not found`);
 		}
 		const safeKit = await getSafeKit(scdk.provider, safe.address);
 		const safeTx = await safeKit.createTransaction({
@@ -180,7 +137,7 @@ async function syncProposal(
 			let ownerIdx = 0;
 			for (const owner of safe.owners) {
 				if (!(await isEOA(owner, scdk))) {
-					const ownerSafe = await getSafe(owner, scdk);
+					const ownerSafe = scdk.state.getSafeByAddress(owner);
 					if (ownerSafe !== null) {
 						let found = false;
 						for (const delegate of ownerSafe.delegates) {
@@ -209,17 +166,25 @@ Parent proposal: ${proposalConfig.title}
 
 ${proposalConfig.description}
 `,
-							safe: ownerSafe.name,
+							safe: ownerSafe.address,
 							createChildProposals: true
 						};
-						scdk.fs.write(
-							resolve(context, `${hash}.${ownerIdx}.child.proposal.yaml`),
-							yamlToString(childProposalConfig)
+						let proposalIndex = await scdk.state.proposalExists(
+							resolve(context, `${hash}.${ownerIdx}.child.proposal.yaml`)
 						);
+						if (proposalIndex < 0) {
+							scdk.state.createProposal(
+								resolve(context, `${hash}.${ownerIdx}.child.proposal.yaml`),
+								childProposalConfig
+							);
+						} else {
+							await scdk.state.writeProposal(proposalIndex, childProposalConfig);
+						}
 						childResults = [
 							...childResults,
 							...(await syncProposal(
 								scdk,
+								childProposalConfig,
 								context,
 								`${hash}.${ownerIdx}.child`,
 								`${hash}.${ownerIdx}.child.proposal.yaml`
@@ -233,7 +198,7 @@ ${proposalConfig.description}
 
 		if (scdk.shouldWrite && scdk.shouldUpload) {
 			if (!delegateExists(safe, proposalConfig.delegate)) {
-				throw new Error(`Delegate ${proposalConfig.delegate} not found in safe ${safeName}`);
+				throw new Error(`Delegate ${proposalConfig.delegate} not found in safe ${safeAddress}`);
 			}
 			const delegateAddress = utils.getAddress(proposalConfig.delegate);
 
@@ -268,6 +233,14 @@ ${proposalConfig.description}
 			}
 
 			proposalConfig.safeTxHash = hash;
+			if (safe.notifications) {
+				proposalConfig.notifications = {};
+				if (safe.notifications.slack) {
+					proposalConfig.notifications.slack = safe.notifications.slack.channels.map(channel => ({
+						channel
+					}));
+				}
+			}
 		}
 
 		return [
@@ -289,10 +262,10 @@ ${proposalConfig.description}
 			...childResults
 		];
 	} else if (proposalConfig.proposal && proposalConfig.function) {
-		const safeName = proposalConfig.safe;
-		const safe = await getSafeByName(scdk, safeName);
+		const safeAddress = proposalConfig.safe;
+		const safe = scdk.state.getSafeByAddress(safeAddress);
 		if (safe === null) {
-			throw new Error(`Safe ${safeName} not found`);
+			throw new Error(`Safe ${safeAddress} not found`);
 		}
 		const sender = safe.address;
 		const command = `${await whereBin('forge')} script ${resolve(
@@ -413,7 +386,7 @@ ${proposalConfig.description}
 				let ownerIdx = 0;
 				for (const owner of safe.owners) {
 					if (!(await isEOA(owner, scdk))) {
-						const ownerSafe = await getSafe(owner, scdk);
+						const ownerSafe = scdk.state.getSafeByAddress(owner);
 						if (ownerSafe !== null) {
 							let found = false;
 							for (const delegate of ownerSafe.delegates) {
@@ -442,17 +415,25 @@ Parent proposal: ${proposalConfig.title}
 
 ${proposalConfig.description}
 `,
-								safe: ownerSafe.name,
+								safe: ownerSafe.address,
 								createChildProposals: true
 							};
-							scdk.fs.write(
-								resolve(context, `${hash}.${ownerIdx}.child.proposal.yaml`),
-								yamlToString(childProposalConfig)
+							let proposalIndex = await scdk.state.proposalExists(
+								resolve(context, `${hash}.${ownerIdx}.child.proposal.yaml`)
 							);
+							if (proposalIndex < 0) {
+								scdk.state.createProposal(
+									resolve(context, `${hash}.${ownerIdx}.child.proposal.yaml`),
+									childProposalConfig
+								);
+							} else {
+								await scdk.state.writeProposal(proposalIndex, childProposalConfig);
+							}
 							childResults = [
 								...childResults,
 								...(await syncProposal(
 									scdk,
+									childProposalConfig,
 									context,
 									`${hash}.${ownerIdx}.child`,
 									`${hash}.${ownerIdx}.child.proposal.yaml`
@@ -466,7 +447,7 @@ ${proposalConfig.description}
 
 			if (scdk.shouldWrite && scdk.shouldUpload) {
 				if (!delegateExists(safe, proposalConfig.delegate)) {
-					throw new Error(`Delegate ${proposalConfig.delegate} not found in safe ${safeName}`);
+					throw new Error(`Delegate ${proposalConfig.delegate} not found in safe ${safeAddress}`);
 				}
 				const delegateAddress = utils.getAddress(proposalConfig.delegate);
 
@@ -501,6 +482,14 @@ ${proposalConfig.description}
 				}
 
 				proposalConfig.safeTxHash = hash;
+				if (safe.notifications) {
+					proposalConfig.notifications = {};
+					if (safe.notifications.slack) {
+						proposalConfig.notifications.slack = safe.notifications.slack.channels.map(channel => ({
+							channel
+						}));
+					}
+				}
 			}
 
 			return [

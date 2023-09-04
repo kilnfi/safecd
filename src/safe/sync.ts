@@ -1,10 +1,8 @@
 import { SafeMultisigTransactionListResponse } from '@safe-global/api-kit';
 import axios from 'axios';
 import { utils } from 'ethers';
-import { existsSync, readdirSync } from 'fs';
 import { resolve } from 'path';
-import { Address, EOA, EOASchema, load, PopulatedSafe, Safe, SafeCDKit, SafeSchema } from '../types';
-import { yamlToString } from '../utils/yamlToString';
+import { Address, EOA, PopulatedSafe, Safe, SafeCDKit, Transaction } from '../types';
 
 function hasFinalizedForNonce(txs: SafeMultisigTransactionListResponse['results'], nonce: number): boolean {
 	for (const tx of txs) {
@@ -15,38 +13,16 @@ function hasFinalizedForNonce(txs: SafeMultisigTransactionListResponse['results'
 	return false;
 }
 
-async function cleanupTransactions(scdk: SafeCDKit): Promise<void> {
-	if (existsSync('./transactions')) {
-		const transactions = readdirSync('./transactions');
-		for (const transaction of transactions) {
-			const transactionPath = resolve('./transactions', transaction);
-			if (existsSync(transactionPath)) {
-				const txs = readdirSync(transactionPath);
-				for (const tx of txs) {
-					const txPath = resolve(transactionPath, tx);
-					scdk.fs.remove(txPath);
-				}
-			}
-		}
-	}
-}
-
 export async function syncSafes(scdk: SafeCDKit): Promise<void> {
-	await cleanupTransactions(scdk);
-	const safes = readdirSync('./safes');
-	for (const safeConfig of safes) {
-		const safe: Safe = load<Safe>(scdk.fs, SafeSchema, `./safes/${safeConfig}`);
-		safe.address = utils.getAddress(safe.address);
-		const retrievedAddresses = await syncSafe(scdk, safe, `./safes/${safeConfig}`);
-		const populatedSafeYaml = yamlToString(retrievedAddresses[retrievedAddresses.length - 1]);
-		scdk.fs.write(`./safes/${safeConfig}`, populatedSafeYaml);
+	for (let safeIdx = 0; safeIdx < scdk.state.safes.length; ++safeIdx) {
+		const safe: Safe = scdk.state.safes[safeIdx].entity;
+		const retrievedAddresses = await syncSafe(scdk, safe, scdk.state.safes[safeIdx].path);
+		await scdk.state.writeSafe(safeIdx, retrievedAddresses[retrievedAddresses.length - 1] as PopulatedSafe);
 		for (const addr of retrievedAddresses.slice(0, retrievedAddresses.length - 1)) {
 			if (addr.type === 'eoa') {
-				const eoaYaml = yamlToString(addr);
-				scdk.fs.write(`./eoas/${addr.address}.yaml`, eoaYaml);
+				await scdk.state.createEOA(`./eoas/${addr.address}.yaml`, addr as EOA);
 			} else {
-				const safeYaml = yamlToString(addr);
-				scdk.fs.write(`./safes/${addr.address}.yaml`, safeYaml);
+				await scdk.state.createSafe(`./safes/${addr.address}.yaml`, addr as PopulatedSafe);
 			}
 		}
 	}
@@ -93,29 +69,11 @@ async function syncAddresses(addrs: string[], scdk: SafeCDKit): Promise<Address[
 }
 
 function isMonitoredSafe(address: string, scdk: SafeCDKit): boolean {
-	if (existsSync('./safes')) {
-		const safes = readdirSync('./safes');
-		for (const safeConfig of safes) {
-			const safe: Safe = load<Safe>(scdk.fs, SafeSchema, `./safes/${safeConfig}`);
-			if (utils.getAddress(safe.address) === utils.getAddress(address)) {
-				return true;
-			}
-		}
-	}
-	return false;
+	return scdk.state.getSafeByAddress(address) !== null;
 }
 
 function isMonitoredEOA(address: string, scdk: SafeCDKit): boolean {
-	if (existsSync('./eoas')) {
-		const eoas = readdirSync('./eoas');
-		for (const eoa of eoas) {
-			const loadedEOA: EOA = load<EOA>(scdk.fs, EOASchema, `./eoas/${eoa}`);
-			if (utils.getAddress(loadedEOA.address) === utils.getAddress(address)) {
-				return true;
-			}
-		}
-	}
-	return false;
+	return scdk.state.getEOAByAddress(address) !== null;
 }
 
 async function syncSafeTransactions(
@@ -177,13 +135,23 @@ async function syncSafe(scdk: SafeCDKit, safe: Safe, path: string): Promise<Addr
 		if (tx.transactionHash === null && hasFinalizedForNonce(transactions, tx.nonce)) {
 			continue;
 		}
-		const txYaml = yamlToString(tx);
-		scdk.fs.write(
-			`./transactions/${safe.name}/${tx.nonce.toString().padStart(5, '0')}.${tx.safeTxHash}${
-				tx.transactionHash === null ? '.pending.' : '.'
-			}yaml`,
-			txYaml
-		);
+		const path = `./transactions/${safe.name}/${tx.nonce.toString().padStart(5, '0')}.${tx.safeTxHash}${
+			tx.transactionHash === null ? '.pending.' : '.'
+		}yaml`;
+		if (scdk.state.transactionByHash[tx.safeTxHash.toLowerCase()] === undefined) {
+			await scdk.state.createTransaction(path, tx as Transaction);
+		} else {
+			const registeredTx = scdk.state.transactions[scdk.state.transactionByHash[tx.safeTxHash.toLowerCase()]];
+			if (resolve(registeredTx.path) === resolve(path)) {
+				await scdk.state.writeTransaction(
+					scdk.state.transactionByHash[tx.safeTxHash.toLowerCase()],
+					tx as Transaction
+				);
+			} else {
+				await scdk.state.unbindTransaction(scdk.state.transactionByHash[tx.safeTxHash.toLowerCase()]);
+				await scdk.state.createTransaction(path, tx as Transaction);
+			}
+		}
 	}
 	console.log(`synced ${transactions.length} transactions for safe ${safe.address}`);
 	return [...resolvedOwners, ...resolvedDelegates, populatedSafe as Address];

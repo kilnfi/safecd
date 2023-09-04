@@ -1,15 +1,18 @@
 import { Command, Option } from 'commander';
 import { ethers, utils } from 'ethers';
-import { existsSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
+import { relative, resolve } from 'path';
 import { promisify } from 'util';
+import YAML from 'yaml';
 import { transactionApis } from '../constants';
 import { generateRootReadme } from '../docs/generatedRootReadme';
-import { CacheFS } from '../fs/cacheFs';
+import { handleNotifications } from '../notifications';
 import { syncProposals } from '../proposal/sync';
 import { checkRequirements } from '../requirements';
 import { getSafeApiKit } from '../safe-api/kit';
 import { syncSafes } from '../safe/sync';
-import { GlobalConfig, GlobalConfigSchema, load, SafeCDKit } from '../types';
+import { State } from '../state';
+import { GlobalConfig, GlobalConfigSchema, loadEntity, Manifest, SafeCDKit } from '../types';
 const exec = promisify(require('child_process').exec);
 
 const rpcOption = new Option('--rpc <char>', 'ethereum rpc endpoint').env('RPC');
@@ -64,14 +67,15 @@ export default function loadCommand(command: Command): void {
 				console.log('  ================================================  ');
 				console.log();
 			}
-			const fs = new CacheFS();
 			const chainId = (await provider.getNetwork()).chainId;
-			const config: GlobalConfig = load<GlobalConfig>(fs, GlobalConfigSchema, './safecd.yaml');
+			const config: GlobalConfig = loadEntity<GlobalConfig>(GlobalConfigSchema, './safecd.yaml');
 			const safeApiUrl = transactionApis[config.network] as string;
 			if (!safeApiUrl) {
 				throw new Error(`Unsupported network ${config.network}`);
 			}
 			const sak = await getSafeApiKit(provider, safeApiUrl);
+			const state = new State();
+			await state.load();
 			const scdk: SafeCDKit = {
 				sak,
 				provider,
@@ -80,15 +84,16 @@ export default function loadCommand(command: Command): void {
 				safeUrl: safeApiUrl,
 				shouldUpload,
 				shouldWrite,
-				fs,
 				network: config.network,
 				network_id: chainId,
-				config
+				config,
+				state
 			};
 
 			console.log('stage 1: syncing safes, transactions, owners and delegates');
 			await syncSafes(scdk);
 			console.log('stage 1: done.');
+
 			if (scdk.shouldWrite && scdk.shouldUpload) {
 				console.log('stage 2: syncing & uploading proposals');
 			} else {
@@ -104,36 +109,172 @@ export default function loadCommand(command: Command): void {
 				console.log('stage 3: done.');
 			}
 
+			if (scdk.shouldWrite && scdk.shouldUpload) {
+				await handleNotifications(scdk);
+			}
+
 			console.log();
 			console.log('  ================================================  ');
 			console.log();
 
-			scdk.fs.printDiff();
-			const result = await scdk.fs.commit(scdk.shouldWrite);
-
-			scdk.fs = new CacheFS();
 			const updatedReadme = await generateRootReadme(scdk);
 			if (updatedReadme !== null) {
 				writeFileSync('./README.md', updatedReadme);
 			}
-			if (result !== null) {
+
+			await scdk.state.diff();
+			const saveResult = await scdk.state.save();
+
+			if (saveResult !== null) {
 				if (updatedReadme !== null) {
-					result.commitMsg.edit += 1;
-					result.commitMsg.message += `- edit   README.md\n`;
+					saveResult.commit.edits += 1;
+					saveResult.commit.message += `- edit   README.md\n`;
 				}
-				if (result.commitMsg.create + result.commitMsg.edit + result.commitMsg.delete > 0) {
-					const COMMIT_MSG = `create=${result.commitMsg.create} edit=${result.commitMsg.edit} delete=${result.commitMsg.delete}\n\n${result.commitMsg.message}\n\n[skip ci]\n`;
+				if (saveResult.commit.creations + saveResult.commit.edits + saveResult.commit.deletions > 0) {
+					const COMMIT_MSG = `create=${saveResult.commit.creations} edit=${saveResult.commit.edits} delete=${saveResult.commit.deletions}\n\n${saveResult.commit.message}\n\n[skip ci]\n`;
 					writeFileSync('COMMIT_MSG', COMMIT_MSG, { encoding: 'utf8' });
 					await exec(`echo "hasChanges=true" >> $GITHUB_OUTPUT`);
 					console.log('writting "hasChanged=true" ci output variable');
 				} else if (existsSync('COMMIT_MSG')) {
 					unlinkSync('COMMIT_MSG');
 				}
-				if (result.hasPrComment) {
-					writeFileSync('PR_COMMENT', result.prComment, { encoding: 'utf8' });
-					await exec(`echo "hasPrComment=true" >> $GITHUB_OUTPUT`);
-					console.log('writting "hasPrComment=true" ci output variable');
+				if (process.env.CI === 'true') {
+					console.log("looking for proposal manifests in './script'");
+					const proposalManifests = gatherProposalManifests();
+					if (proposalManifests.length > 0) {
+						let content = '# Proposal Simulation Manifests\n\n';
+						for (const proposalManifest of proposalManifests) {
+							console.log(`  formatting ${proposalManifest}`);
+							const proposalManifestContent = formatManifestToMarkdown(
+								proposalManifest,
+								YAML.parse(readFileSync(proposalManifest, { encoding: 'utf8' }))
+							);
+							content += `${proposalManifestContent}`;
+						}
+						writeFileSync('PR_COMMENT', content, { encoding: 'utf8' });
+						await exec(`echo "hasPrComment=true" >> $GITHUB_OUTPUT`);
+						console.log('writting "hasPrComment=true" ci output variable');
+					}
 				}
 			}
 		});
+}
+
+function formatManifestToMarkdown(path: string, manifest: Manifest): string {
+	const { title, description, ...proposalWithoutMetadata } = manifest.raw_proposal;
+	if (manifest.error === undefined) {
+		return `
+	
+## \`${path}\` ✅
+
+### ${title}
+
+${description || ''}
+
+### Proposal
+
+\`\`\`yaml
+${YAML.stringify(proposalWithoutMetadata, { lineWidth: 0 })}
+\`\`\`
+
+### Safe Transaction
+
+\`\`\`yaml
+${YAML.stringify(manifest.safe_transaction, { lineWidth: 0 })}
+\`\`\`
+
+### Safe
+
+\`\`\`yaml
+${YAML.stringify(manifest.safe, { lineWidth: 0 })}
+\`\`\`
+
+### Proposal Script
+
+\`\`\`solidity
+${manifest.raw_script}
+\`\`\`
+
+### Proposal Script Simulation Output
+
+\`\`\`
+${manifest.simulation_output}
+\`\`\`
+
+### Proposal Script Simulation Transactions
+
+\`\`\`yaml
+${YAML.stringify(manifest.simulation_transactions, { lineWidth: 0 })}
+\`\`\`
+
+### Safe Estimation
+
+\`\`\`yaml
+${YAML.stringify(manifest.safe_estimation, { lineWidth: 0 })}
+\`\`\`
+
+`;
+	} else {
+		return `
+	
+## \`${path}\` ❌
+
+\`\`\`
+${manifest.error}
+\`\`\`
+
+### ${title}
+
+${description || ''}
+
+### Proposal
+
+\`\`\`yaml
+${YAML.stringify(proposalWithoutMetadata, { lineWidth: 0 })}
+\`\`\`
+
+### Safe
+
+\`\`\`yaml
+${YAML.stringify(manifest.safe, { lineWidth: 0 })}
+\`\`\`
+
+### Proposal Script
+
+\`\`\`solidity
+${manifest.raw_script}
+\`\`\`
+
+### Proposal Script Simulation Output
+
+\`\`\`
+${manifest.simulation_output}
+\`\`\`
+
+### Proposal Script Simulation Error Output
+
+\`\`\`
+${manifest.simulation_error_output}
+\`\`\`
+
+`;
+	}
+}
+
+function gatherProposalManifests(): string[] {
+	return gatherProposalManifestsInDir(resolve('./script'));
+}
+
+function gatherProposalManifestsInDir(path: string): string[] {
+	const elements = readdirSync(path);
+	let manifests: string[] = [];
+	for (const element of elements) {
+		if (element.endsWith('.proposal.manifest.yaml')) {
+			manifests.push(relative(resolve('.'), resolve(path, element)));
+		}
+		if (statSync(resolve(path, element)).isDirectory()) {
+			manifests = [...manifests, ...gatherProposalManifestsInDir(resolve(path, element))];
+		}
+	}
+	return manifests;
 }

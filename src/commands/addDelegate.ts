@@ -3,9 +3,8 @@ import { EthereumProvider } from '@walletconnect/ethereum-provider';
 import { Command } from 'commander';
 import { ethers } from 'ethers';
 import { transactionApis } from '../constants';
-import { CacheFS } from '../fs/cacheFs';
 import { getSafeApiKit } from '../safe-api/kit';
-import { GlobalConfig, GlobalConfigSchema, load } from '../types';
+import { GlobalConfig, GlobalConfigSchema, loadEntity } from '../types';
 
 const { LedgerSigner } = require('@ethersproject/hardware-wallets');
 const qrcode = require('qrcode-terminal');
@@ -66,8 +65,7 @@ export default function loadCommand(command: Command): void {
 			} else {
 				signer = new ethers.Wallet(options.pk, provider);
 			}
-			const fs = new CacheFS();
-			const config: GlobalConfig = load<GlobalConfig>(fs, GlobalConfigSchema, './safecd.yaml');
+			const config: GlobalConfig = loadEntity<GlobalConfig>(GlobalConfigSchema, './safecd.yaml');
 			const safeApiUrl = transactionApis[config.network] as string;
 			const sak = await getSafeApiKit(provider, safeApiUrl);
 
