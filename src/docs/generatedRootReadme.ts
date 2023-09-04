@@ -283,7 +283,11 @@ function getNameAndType(scdk: SafeCDKit, address: string): string {
 }
 
 function getAllSafeTransactions(scdk: SafeCDKit, safe: PopulatedSafe): Transaction[] {
-	return scdk.state.transactionBySafe[utils.getAddress(safe.address)]
+	const txIds = scdk.state.transactionBySafe[utils.getAddress(safe.address)];
+	if (!txIds) {
+		return [];
+	}
+	return txIds
 		.map(txIndex => scdk.state.transactions[txIndex].entity as Transaction)
 		.sort((a: Transaction, b: Transaction) => b.submissionDate.localeCompare(a.submissionDate));
 }
