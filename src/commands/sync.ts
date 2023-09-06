@@ -12,7 +12,7 @@ import { checkRequirements } from '../requirements';
 import { getSafeApiKit } from '../safe-api/kit';
 import { syncSafes } from '../safe/sync';
 import { State } from '../state';
-import { GlobalConfig, GlobalConfigSchema, loadEntity, Manifest, SafeCDKit } from '../types';
+import { Manifest, SafeCDKit } from '../types';
 const exec = promisify(require('child_process').exec);
 
 const rpcOption = new Option('--rpc <char>', 'ethereum rpc endpoint').env('RPC');
@@ -68,14 +68,13 @@ export default function loadCommand(command: Command): void {
 				console.log();
 			}
 			const chainId = (await provider.getNetwork()).chainId;
-			const config: GlobalConfig = loadEntity<GlobalConfig>(GlobalConfigSchema, './safecd.yaml');
-			const safeApiUrl = transactionApis[config.network] as string;
-			if (!safeApiUrl) {
-				throw new Error(`Unsupported network ${config.network}`);
-			}
-			const sak = await getSafeApiKit(provider, safeApiUrl);
 			const state = new State();
 			await state.load();
+			const safeApiUrl = transactionApis[state.config.network] as string;
+			if (!safeApiUrl) {
+				throw new Error(`Unsupported network ${state.config.network}`);
+			}
+			const sak = await getSafeApiKit(provider, safeApiUrl);
 			const scdk: SafeCDKit = {
 				sak,
 				provider,
@@ -84,9 +83,8 @@ export default function loadCommand(command: Command): void {
 				safeUrl: safeApiUrl,
 				shouldUpload,
 				shouldWrite,
-				network: config.network,
+				network: state.config.network,
 				network_id: chainId,
-				config,
 				state
 			};
 

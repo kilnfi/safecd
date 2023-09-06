@@ -19,12 +19,21 @@ const safeTxLinkByNetwork: { [key: string]: string } = {
 };
 
 export async function generateRootReadme(scdk: SafeCDKit): Promise<string | null> {
-	let content = `# ${scdk.config.title}
+	let content = `# ${scdk.state.config.title}
 
 \`\`\`mermaid
 %%{init: {'theme': 'dark', "flowchart" : { "curve" : "basis" } } }%%
 ${generateSafesDiagram(scdk)}
-\`\`\`	
+\`\`\`
+
+${
+	scdk.state.config.addressBook
+		? `## Address Book
+
+${generateAddressBook(scdk)}
+`
+		: ''
+}
 
 ${generateSafesDetailsDiagram(scdk)}
 `;
@@ -33,6 +42,30 @@ ${generateSafesDetailsDiagram(scdk)}
 		return content;
 	}
 	return null;
+}
+
+function generateAddressBook(scdk: SafeCDKit): string {
+	return `
+<table>
+
+<tr>
+<td>Name</td>
+<td>Address</td>
+<tr>
+
+${scdk.state.config.addressBook
+	?.map(
+		entry => `
+<tr>
+<td><code>${entry.name}</code></td>
+<td><code><a href="${getAddressExplorerLink(scdk, entry.address)}" target="_blank">${entry.address}</a></code></td>
+</tr>
+`
+	)
+	.join('\n')}
+
+</table>
+`;
 }
 
 function generateSafesDetailsDiagram(scdk: SafeCDKit): string {
@@ -85,7 +118,7 @@ ${
 <td>Executor</td>
 <td>Tx</td>
 <td>Proposal</td>
-<tr>
+</tr>
 
 ${formatSafeTransactions(
 	scdk,
@@ -117,7 +150,7 @@ function formatPendingTransactionsTable(scdk: SafeCDKit, safe: PopulatedSafe, tx
 <td>Confirmations</td>
 <td>Signers</td>
 <td>Proposal</td>
-<tr>
+</tr>
 
 ${formatSafeTransactions(scdk, safe, txs)}
 

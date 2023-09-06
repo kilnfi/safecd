@@ -182,7 +182,6 @@ export interface SafeCDKit {
 	safeUrl: string;
 	network: string;
 	network_id: number;
-	config: GlobalConfig;
 	state: State;
 }
 

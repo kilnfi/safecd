@@ -59,8 +59,8 @@ function harvestAllLabels(scdk: SafeCDKit, customProposalLabels: Label[] | undef
 	for (const safe of scdk.state.safes) {
 		res[`SAFE:${safe.entity.name}`] = safe.entity.address;
 	}
-	if (scdk.config.addressBook) {
-		for (const entry of scdk.config.addressBook) {
+	if (scdk.state.config.addressBook) {
+		for (const entry of scdk.state.config.addressBook) {
 			res[entry.name] = entry.address;
 		}
 	}
