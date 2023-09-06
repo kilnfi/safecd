@@ -51,29 +51,49 @@ function delegateExists(safe: PopulatedSafe, address: string): boolean {
 	return false;
 }
 
-function harvestAllLabels(scdk: SafeCDKit, customProposalLabels: Label[] | undefined): string {
-	const labels = [];
+function harvestAllLabels(scdk: SafeCDKit, customProposalLabels: Label[] | undefined): { [name: string]: string } {
+	const res: { [name: string]: string } = {};
 	for (const eoa of scdk.state.eoas) {
-		labels.push(eoa.entity.address);
-		labels.push(`EOA:${eoa.entity.name}`);
+		res[`EOA:${eoa.entity.name}`] = eoa.entity.address;
 	}
 	for (const safe of scdk.state.safes) {
-		labels.push(safe.entity.address);
-		labels.push(`SAFE:${safe.entity.name}`);
+		res[`SAFE:${safe.entity.name}`] = safe.entity.address;
 	}
 	if (scdk.config.addressBook) {
 		for (const entry of scdk.config.addressBook) {
-			labels.push(entry.address);
-			labels.push(entry.name);
+			res[entry.name] = entry.address;
 		}
 	}
 	if (customProposalLabels !== undefined) {
 		for (const label of customProposalLabels) {
-			labels.push(label.address);
-			labels.push(label.name);
+			res[label.name] = label.address;
 		}
 	}
-	return labels.join(',');
+	return res;
+}
+
+function formatAllLabels(labels: { [name: string]: string }): string {
+	const res = [];
+	for (const [name, address] of Object.entries(labels)) {
+		res.push(address);
+		res.push(name);
+	}
+	return res.join(',');
+}
+
+function transformArguments(args: string[], labels: { [name: string]: string }): string[] {
+	const res = [];
+	for (const arg of args) {
+		res.push(
+			arg.replace(/\[\[([^\[\]]*)\]\]/gim, (match, p1) => {
+				if (labels[p1] === undefined) {
+					throw new Error(`Label ${p1} not found`);
+				}
+				return labels[p1];
+			})
+		);
+	}
+	return res;
 }
 
 async function isEOA(address: string, scdk: SafeCDKit): Promise<boolean> {
@@ -123,6 +143,7 @@ async function syncProposal(
 						safe: safe,
 						raw_proposal: proposalConfig,
 						raw_script: '',
+						raw_command: '',
 						simulation_output: '',
 						simulation_success: false,
 						simulation_transactions: [],
@@ -256,6 +277,7 @@ ${proposalConfig.description}
 					safe: safe,
 					raw_proposal: proposalConfig,
 					raw_script: '',
+					raw_command: '',
 					simulation_output: '',
 					simulation_success: true,
 					simulation_transactions: [],
@@ -274,18 +296,21 @@ ${proposalConfig.description}
 			throw new Error(`Safe ${safeAddress} not found`);
 		}
 		const sender = safe.address;
+
+		const labels = harvestAllLabels(scdk, proposalConfig.labels);
+
 		const command = `${await whereBin('forge')} script ${resolve(
 			context,
 			proposalConfig.proposal
 		)}:Proposal --sender ${sender} --fork-url ${scdk.rpcUrl} --sig '${proposalConfig.function.replace(
 			/'/g,
 			''
-		)}' -vvvvv ${proposalConfig.arguments?.join(' ')}`;
+		)}' -vvvvv ${proposalConfig.arguments ? transformArguments(proposalConfig.arguments, labels).join(' ') : ''}`;
 
 		let cleanedStdout;
 		let cleanedStderr;
 		try {
-			process.env.SAFECD_SIMULATION_LABELS = harvestAllLabels(scdk, proposalConfig.labels);
+			process.env.SAFECD_SIMULATION_LABELS = formatAllLabels(labels);
 			const { error, stdout, stderr } = await exec(command);
 			cleanedStdout = noColor(stdout);
 			cleanedStdout = cleanedStdout.slice(
@@ -303,6 +328,7 @@ ${proposalConfig.description}
 					{
 						safe: safe,
 						raw_proposal: proposalConfig,
+						raw_command: command.replace(scdk.rpcUrl, '***'),
 						raw_script: readFileSync(resolve(context, proposalConfig.proposal), 'utf8'),
 						simulation_output: cleanedStdout,
 						simulation_error_output: cleanedStderr,
@@ -372,6 +398,7 @@ ${proposalConfig.description}
 						{
 							safe: safe,
 							raw_proposal: proposalConfig,
+							raw_command: command.replace(scdk.rpcUrl, '***'),
 							raw_script: readFileSync(resolve(context, proposalConfig.proposal), 'utf8'),
 							simulation_output: cleanedStdout,
 							simulation_success: false,
@@ -505,6 +532,7 @@ ${proposalConfig.description}
 						safe: safe,
 						raw_proposal: proposalConfig,
 						raw_script: readFileSync(resolve(context, proposalConfig.proposal), 'utf8'),
+						raw_command: command.replace(scdk.rpcUrl, '***'),
 						simulation_output: cleanedStdout,
 						simulation_success: true,
 						simulation_transactions: txs,
@@ -524,6 +552,7 @@ ${proposalConfig.description}
 						safe: safe,
 						raw_proposal: proposalConfig,
 						raw_script: readFileSync(resolve(context, proposalConfig.proposal), 'utf8'),
+						raw_command: command.replace(scdk.rpcUrl, '***'),
 						simulation_output: cleanedStdout,
 						simulation_success: true,
 						simulation_transactions: txs,

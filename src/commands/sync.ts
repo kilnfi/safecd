@@ -201,6 +201,12 @@ ${manifest.raw_script}
 ${manifest.simulation_output}
 \`\`\`
 
+### Proposal Script Command
+
+\`\`\`shell
+${manifest.raw_command}
+\`\`\`
+
 ### Proposal Script Simulation Transactions
 
 \`\`\`yaml
@@ -249,6 +255,12 @@ ${manifest.raw_script}
 
 \`\`\`
 ${manifest.simulation_output}
+\`\`\`
+
+### Proposal Script Command
+
+\`\`\`shell
+${manifest.raw_command}
 \`\`\`
 
 ### Proposal Script Simulation Error Output

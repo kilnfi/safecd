@@ -5,6 +5,8 @@ import { promisify } from 'util';
 import {
 	EOA,
 	EOASchema,
+	GlobalConfig,
+	GlobalConfigSchema,
 	loadEntity,
 	PopulatedSafe,
 	PopulatedSafeSchema,
@@ -62,6 +64,11 @@ export interface SaveResult {
 }
 
 export class State {
+	config: GlobalConfig = {
+		network: '',
+		title: ''
+	};
+
 	safes: SafeEntity[] = [];
 	safeByAddress: { [address: string]: number } = {};
 	safeByName: { [name: string]: number } = {};
@@ -290,10 +297,16 @@ export class State {
 	}
 
 	async load(): Promise<void> {
+		await this.loadConfig();
 		await this.loadSafes();
 		await this.loadEOAS();
 		await this.loadTransactions();
 		await this.loadProposals();
+	}
+
+	async loadConfig(): Promise<void> {
+		const config = loadEntity<GlobalConfig>(GlobalConfigSchema, './safecd.yaml');
+		this.config = config;
 	}
 
 	async save(): Promise<SaveResult> {
@@ -305,6 +318,10 @@ export class State {
 				message: ''
 			}
 		};
+		saveResult = await this.saveEntity(
+			{ path: relativify('./safecd.yaml'), del: false, entity: this.config },
+			saveResult
+		);
 		for (const safe of this.safes) {
 			saveResult = await this.saveEntity(safe, saveResult);
 		}

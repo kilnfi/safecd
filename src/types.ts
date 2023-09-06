@@ -190,6 +190,7 @@ export interface Manifest {
 	safe: PopulatedSafe;
 	raw_proposal: Proposal;
 	raw_script: string;
+	raw_command: string;
 	simulation_output: string;
 	simulation_error_output?: string;
 	simulation_success: boolean;
