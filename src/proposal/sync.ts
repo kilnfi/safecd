@@ -61,6 +61,12 @@ function harvestAllLabels(scdk: SafeCDKit, customProposalLabels: Label[] | undef
 		labels.push(safe.entity.address);
 		labels.push(`SAFE:${safe.entity.name}`);
 	}
+	if (scdk.config.addressBook) {
+		for (const entry of scdk.config.addressBook) {
+			labels.push(entry.address);
+			labels.push(entry.name);
+		}
+	}
 	if (customProposalLabels !== undefined) {
 		for (const label of customProposalLabels) {
 			labels.push(label.address);

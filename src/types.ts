@@ -14,7 +14,8 @@ const ethAddressSchema = z
 
 export const GlobalConfigSchema = z.object({
 	network: z.string(),
-	title: z.string()
+	title: z.string(),
+	addressBook: z.array(z.object({ name: z.string(), address: ethAddressSchema })).optional()
 });
 
 const AddressSchema = z.object({
