@@ -1,5 +1,5 @@
 import { utils } from 'ethers';
-import { Interface } from 'ethers/lib/utils';
+import { Interface, ParamType } from 'ethers/lib/utils';
 import { readFileSync, writeFileSync } from 'fs';
 import { basename, dirname, resolve } from 'path';
 import { promisify } from 'util';
@@ -99,6 +99,92 @@ function transformArguments(args: string[], labels: { [name: string]: string }):
 async function isEOA(address: string, scdk: SafeCDKit): Promise<boolean> {
 	const code = await scdk.provider.getCode(address);
 	return code === '0x';
+}
+
+function verifyFunctionNamedParameters(func: string, paramTypes: ParamType[]): void {
+	for (const param of paramTypes) {
+		if (param.name === '' || param.name === null) {
+			throw new Error(`Invalid proposal function signature "${func}": all parameters must be named`);
+		}
+		if (param.baseType === 'array' && param.arrayChildren.baseType === 'tuple') {
+			verifyFunctionNamedParameters(func, param.arrayChildren.components);
+		}
+		if (param.baseType === 'tuple') {
+			verifyFunctionNamedParameters(func, param.components);
+		}
+	}
+}
+
+function isValue(v: any): boolean {
+	return typeof v === 'boolean' || typeof v === 'string' || typeof v === 'number';
+}
+
+function verifyArguments(param: ParamType, args: any, position: string): void {
+	if (args === null || args === undefined) {
+		throw new Error(`Invalid proposal arguments: "${position}" argument must be provided`);
+	}
+	if (param.baseType === 'array') {
+		if (!Array.isArray(args)) {
+			throw new Error(`Invalid proposal arguments: "${position}" argument must be an array`);
+		}
+		if (param.arrayLength !== -1 && args.length !== param.arrayLength) {
+			throw new Error(
+				`Invalid proposal arguments: "${position}" argument must be an array of length ${param.arrayLength}`
+			);
+		}
+		if (param.arrayChildren.baseType === 'array' || param.arrayChildren.baseType === 'tuple') {
+			let idx = 0;
+			for (const arg of args) {
+				verifyArguments(param.arrayChildren, arg, `${position}[${idx}]`);
+				++idx;
+			}
+		} else {
+			let idx = 0;
+			for (const arg of args) {
+				verifyArguments(param.arrayChildren, arg, `${position}[${idx}]`);
+				++idx;
+			}
+		}
+	} else if (param.baseType === 'tuple') {
+		for (const subParam of param.components) {
+			verifyArguments(subParam, args[subParam.name], `${position}.${subParam.name}`);
+		}
+	} else {
+		if (!isValue(args)) {
+			throw new Error(
+				`Invalid proposal arguments: "${position}" argument must be a valid ${param.baseType} value, got ${args}`
+			);
+		}
+	}
+}
+
+function encodeArguments(param: ParamType, args: any, labels: { [key: string]: string }): string {
+	let res = '';
+	if (param.baseType === 'array') {
+		const subElements = [];
+		for (const arg of args) {
+			subElements.push(encodeArguments(param.arrayChildren, arg, labels));
+		}
+		res += `[${subElements.join(',')}]`;
+	} else if (param.baseType === 'tuple') {
+		const subElements = [];
+		for (const subParam of param.components) {
+			subElements.push(encodeArguments(subParam, args[subParam.name], labels));
+		}
+		res += `(${subElements.join(',')})`;
+	} else {
+		if (typeof args === 'string') {
+			res = args.replace(/\[\[([^\[\]]*)\]\]/gim, (match, p1) => {
+				if (labels[p1] === undefined) {
+					throw new Error(`Label ${p1} not found`);
+				}
+				return labels[p1];
+			});
+		} else {
+			res = args;
+		}
+	}
+	return res;
 }
 
 async function syncProposal(
@@ -299,13 +385,26 @@ ${proposalConfig.description}
 
 		const labels = harvestAllLabels(scdk, proposalConfig.labels);
 
+		const args = [];
+
+		if (proposalConfig.arguments) {
+			const itf = new Interface([`function ${proposalConfig.function}`]);
+			verifyFunctionNamedParameters(proposalConfig.function, itf.fragments[0].inputs);
+			for (const inp of itf.fragments[0].inputs) {
+				verifyArguments(inp, proposalConfig.arguments[inp.name], inp.name);
+			}
+			for (const inp of itf.fragments[0].inputs) {
+				args.push(encodeArguments(inp, proposalConfig.arguments[inp.name], labels));
+			}
+		}
+
 		const command = `${await whereBin('forge')} script ${resolve(
 			context,
 			proposalConfig.proposal
 		)}:Proposal --sender ${sender} --fork-url ${scdk.rpcUrl} --sig '${proposalConfig.function.replace(
 			/'/g,
 			''
-		)}' -vvvvv ${proposalConfig.arguments ? transformArguments(proposalConfig.arguments, labels).join(' ') : ''}`;
+		)}' -vvvvv ${args.length > 0 ? `"${args.join(`" "`)}"` : ''}`;
 
 		let cleanedStdout;
 		let cleanedStderr;

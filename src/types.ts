@@ -93,7 +93,7 @@ export const ProposalSchema = z.object({
 		})
 		.optional(),
 	nonce: z.number().optional(),
-	arguments: z.array(z.string()).optional(),
+	arguments: z.any().optional(),
 	safeTxHash: z.string().optional(),
 	labels: z.array(LabelSchema).optional(),
 	createChildProposals: z.boolean().optional(),
