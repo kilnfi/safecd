@@ -183,6 +183,9 @@ function encodeArguments(param: ParamType, args: any, labels: { [key: string]: s
 		} else {
 			res = args;
 		}
+		// if (param.baseType === 'string') {
+		// 	res = `"${res}"`;
+		// }
 	}
 	return res;
 }
@@ -386,9 +389,9 @@ ${proposalConfig.description}
 		const labels = harvestAllLabels(scdk, proposalConfig.labels);
 
 		const args = [];
+		const itf = new Interface([`function ${proposalConfig.function}`]);
 
 		if (proposalConfig.arguments) {
-			const itf = new Interface([`function ${proposalConfig.function}`]);
 			verifyFunctionNamedParameters(proposalConfig.function, itf.fragments[0].inputs);
 			for (const inp of itf.fragments[0].inputs) {
 				verifyArguments(inp, proposalConfig.arguments[inp.name], inp.name);
@@ -401,10 +404,9 @@ ${proposalConfig.description}
 		const command = `${await whereBin('forge')} script ${resolve(
 			context,
 			proposalConfig.proposal
-		)}:Proposal --sender ${sender} --fork-url ${scdk.rpcUrl} --sig '${proposalConfig.function.replace(
-			/'/g,
-			''
-		)}' -vvvvv ${args.length > 0 ? `"${args.join(`" "`)}"` : ''}`;
+		)}:Proposal --sender ${sender} --fork-url ${scdk.rpcUrl} --sig '${itf.fragments[0].format()}' -vvvvv ${
+			args.length > 0 ? `'${args.join(`' '`)}'` : ''
+		}`;
 
 		let cleanedStdout;
 		let cleanedStderr;
