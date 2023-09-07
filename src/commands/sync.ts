@@ -140,7 +140,7 @@ export default function loadCommand(command: Command): void {
 					console.log("looking for proposal manifests in './script'");
 					const proposalManifests = gatherProposalManifests();
 					if (proposalManifests.length > 0) {
-						let content = '# Proposal Simulation Manifests\n\n';
+						let content = '## Proposal Simulation Manifests\n\n';
 						for (const proposalManifest of proposalManifests) {
 							console.log(`  formatting ${proposalManifest}`);
 							const proposalManifestContent = formatManifestToMarkdown(
@@ -162,12 +162,16 @@ function formatManifestToMarkdown(path: string, manifest: Manifest): string {
 	const { title, description, ...proposalWithoutMetadata } = manifest.raw_proposal;
 	if (manifest.error === undefined) {
 		return `
-	
-## \`${path}\` ✅
+---
+
+# \`${path}\` ✅
 
 ### ${title}
 
 ${description || ''}
+
+<details>
+<summary><bold>Expand for full proposal details</bold></summary>
 
 ### Proposal
 
@@ -187,6 +191,10 @@ ${YAML.stringify(manifest.safe_transaction, { lineWidth: 0 })}
 ${YAML.stringify(manifest.safe, { lineWidth: 0 })}
 \`\`\`
 
+${
+	proposalWithoutMetadata.childOf
+		? ''
+		: `
 ### Proposal Script
 
 \`\`\`solidity
@@ -210,6 +218,8 @@ ${manifest.raw_command}
 \`\`\`yaml
 ${YAML.stringify(manifest.simulation_transactions, { lineWidth: 0 })}
 \`\`\`
+`
+}
 
 ### Safe Estimation
 
@@ -217,6 +227,7 @@ ${YAML.stringify(manifest.simulation_transactions, { lineWidth: 0 })}
 ${YAML.stringify(manifest.safe_estimation, { lineWidth: 0 })}
 \`\`\`
 
+</details>
 `;
 	} else {
 		return `
@@ -243,6 +254,10 @@ ${YAML.stringify(proposalWithoutMetadata, { lineWidth: 0 })}
 ${YAML.stringify(manifest.safe, { lineWidth: 0 })}
 \`\`\`
 
+${
+	proposalWithoutMetadata.childOf
+		? ''
+		: `
 ### Proposal Script
 
 \`\`\`solidity
@@ -261,11 +276,13 @@ ${manifest.simulation_output}
 ${manifest.raw_command}
 \`\`\`
 
-### Proposal Script Simulation Error Output
+### Proposal Script Simulation Transactions
 
+\`\`\`yaml
+${YAML.stringify(manifest.simulation_transactions, { lineWidth: 0 })}
 \`\`\`
-${manifest.simulation_error_output}
-\`\`\`
+`
+}
 
 `;
 	}
