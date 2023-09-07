@@ -69,6 +69,8 @@ export async function syncProposals(scdk: SafeCDKit): Promise<void> {
 							console.error('An error occured while trying to post slack notification');
 							console.error(e);
 						}
+					} else {
+						updatedSlackNotifications.push(msg);
 					}
 				}
 				notifications.slack = updatedSlackNotifications;
