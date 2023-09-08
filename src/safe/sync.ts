@@ -20,9 +20,13 @@ export async function syncSafes(scdk: SafeCDKit): Promise<void> {
 		await scdk.state.writeSafe(safeIdx, retrievedAddresses[retrievedAddresses.length - 1] as PopulatedSafe);
 		for (const addr of retrievedAddresses.slice(0, retrievedAddresses.length - 1)) {
 			if (addr.type === 'eoa') {
-				await scdk.state.createEOA(`./eoas/${addr.address}.yaml`, addr as EOA);
+				if (scdk.state.getEOAByAddress(addr.address) === null) {
+					await scdk.state.createEOA(`./eoas/${addr.address}.yaml`, addr as EOA);
+				}
 			} else {
-				await scdk.state.createSafe(`./safes/${addr.address}.yaml`, addr as PopulatedSafe);
+				if (scdk.state.getSafeByAddress(addr.address) === null) {
+					await scdk.state.createSafe(`./safes/${addr.address}.yaml`, addr as PopulatedSafe);
+				}
 			}
 		}
 	}

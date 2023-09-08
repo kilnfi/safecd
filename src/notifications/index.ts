@@ -295,7 +295,7 @@ const formatProposalSlackMessage = (
 						type: 'section',
 						text: {
 							type: 'mrkdwn',
-							text: `*${proposal.title}*
+							text: `<!here> *${proposal.title}*
 						
 ${proposal.description || ''}
 `

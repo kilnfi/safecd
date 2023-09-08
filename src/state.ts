@@ -9,10 +9,10 @@ import {
 	GlobalConfigSchema,
 	loadEntity,
 	PopulatedSafe,
-	PopulatedSafeSchema,
 	Proposal,
 	ProposalSchema,
 	Safe,
+	SafeSchema,
 	Transaction,
 	TransactionSchema
 } from './types';
@@ -422,7 +422,7 @@ export class State {
 	private async loadSafes(): Promise<void> {
 		const safes = readdirSync('./safes');
 		for (const safeConfig of safes) {
-			const safe: Safe = loadEntity<PopulatedSafe>(PopulatedSafeSchema, `./safes/${safeConfig}`);
+			const safe: Safe = loadEntity<Safe>(SafeSchema, `./safes/${safeConfig}`);
 			safe.address = utils.getAddress(safe.address);
 			const safeIndex =
 				this.safes.push({
@@ -442,24 +442,26 @@ export class State {
 	}
 
 	private async loadEOAS(): Promise<void> {
-		const eoas = readdirSync('./eoas');
-		for (const eoaConfig of eoas) {
-			const eoa: EOA = loadEntity<EOA>(EOASchema, `./eoas/${eoaConfig}`);
-			eoa.address = utils.getAddress(eoa.address);
-			const eoaIndex =
-				this.eoas.push({
-					path: relativify(`./eoas/${eoaConfig}`),
-					entity: eoa,
-					del: false
-				}) - 1;
-			if (this.eoaByAddress[eoa.address] !== undefined) {
-				throw new Error(`EOA with address ${eoa.address} is defined twice`);
+		if (existsSync('./eoas')) {
+			const eoas = readdirSync('./eoas');
+			for (const eoaConfig of eoas) {
+				const eoa: EOA = loadEntity<EOA>(EOASchema, `./eoas/${eoaConfig}`);
+				eoa.address = utils.getAddress(eoa.address);
+				const eoaIndex =
+					this.eoas.push({
+						path: relativify(`./eoas/${eoaConfig}`),
+						entity: eoa,
+						del: false
+					}) - 1;
+				if (this.eoaByAddress[eoa.address] !== undefined) {
+					throw new Error(`EOA with address ${eoa.address} is defined twice`);
+				}
+				this.eoaByAddress[eoa.address] = eoaIndex;
+				if (this.eoaByName[eoa.name] !== undefined) {
+					throw new Error(`EOA with name ${eoa.name} is defined twice`);
+				}
+				this.eoaByName[eoa.name] = eoaIndex;
 			}
-			this.eoaByAddress[eoa.address] = eoaIndex;
-			if (this.eoaByName[eoa.name] !== undefined) {
-				throw new Error(`EOA with name ${eoa.name} is defined twice`);
-			}
-			this.eoaByName[eoa.name] = eoaIndex;
 		}
 	}
 
@@ -504,7 +506,9 @@ export class State {
 	}
 
 	private async loadTransactions(): Promise<void> {
-		await this.loadTransactionsInDir('./transactions');
+		if (existsSync('./transactions')) {
+			await this.loadTransactionsInDir('./transactions');
+		}
 	}
 
 	private async loadProposalsInDir(path: string): Promise<void> {
