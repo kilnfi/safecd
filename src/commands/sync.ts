@@ -248,7 +248,7 @@ ${YAML.stringify(manifest.safe_estimation, { lineWidth: 0 })}
 	} else {
 		return `
 	
-# ${title} ✅
+# ${title} ❌
 
 ### \`${path}\`
 
@@ -286,6 +286,12 @@ ${manifest.raw_script}
 
 \`\`\`
 ${manifest.simulation_output}
+\`\`\`
+
+### Proposal Script Simulation Error Output
+
+\`\`\`
+${manifest.simulation_error_output}
 \`\`\`
 
 ### Proposal Script Command
