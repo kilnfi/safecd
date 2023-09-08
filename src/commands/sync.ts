@@ -123,6 +123,8 @@ export default function loadCommand(command: Command): void {
 			await scdk.state.diff();
 			const saveResult = await scdk.state.save();
 
+			let error = 0;
+
 			if (saveResult !== null) {
 				if (updatedReadme !== null) {
 					saveResult.commit.edits += 1;
@@ -143,17 +145,24 @@ export default function loadCommand(command: Command): void {
 						let content = '## Proposal Simulation Manifests\n\n';
 						for (const proposalManifest of proposalManifests) {
 							console.log(`  formatting ${proposalManifest}`);
-							const proposalManifestContent = formatManifestToMarkdown(
-								proposalManifest,
-								YAML.parse(readFileSync(proposalManifest, { encoding: 'utf8' }))
-							);
+							const manifest = YAML.parse(
+								readFileSync(proposalManifest, { encoding: 'utf8' })
+							) as Manifest;
+							const proposalManifestContent = formatManifestToMarkdown(proposalManifest, manifest);
 							content += `${proposalManifestContent}`;
+							if (manifest.error) {
+								error += 1;
+							}
 						}
 						writeFileSync('PR_COMMENT', content, { encoding: 'utf8' });
 						await exec(`echo "hasPrComment=true" >> $GITHUB_OUTPUT`);
 						console.log('writting "hasPrComment=true" ci output variable');
 					}
 				}
+			}
+
+			if (error > 0) {
+				command.error("there's an error in one of the proposal manifests", { exitCode: error });
 			}
 		});
 }
@@ -164,11 +173,17 @@ function formatManifestToMarkdown(path: string, manifest: Manifest): string {
 		return `
 ---
 
-# \`${path}\` ✅
+# ${title} ✅
 
-### ${title}
+### \`${path}\`
 
 ${description || ''}
+
+### Safe Tx Hash
+
+\`\`\`solidity
+${manifest.raw_proposal?.safeTxHash}
+\`\`\`
 
 <details>
 <summary><bold>Expand for full proposal details</bold></summary>
@@ -232,15 +247,17 @@ ${YAML.stringify(manifest.safe_estimation, { lineWidth: 0 })}
 	} else {
 		return `
 	
-## \`${path}\` ❌
+# ${title} ✅
+
+### \`${path}\`
+
+${description || ''}
+
+### Error
 
 \`\`\`
 ${manifest.error}
 \`\`\`
-
-### ${title}
-
-${description || ''}
 
 ### Proposal
 

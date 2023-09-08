@@ -364,7 +364,10 @@ ${proposalConfig.description}
 				proposalConfig,
 				{
 					safe: safe,
-					raw_proposal: proposalConfig,
+					raw_proposal: {
+						...proposalConfig,
+						safeTxHash: hash
+					},
 					raw_script: '',
 					raw_command: '',
 					simulation_output: '',
@@ -631,7 +634,10 @@ ${proposalConfig.description}
 					proposalConfig,
 					{
 						safe: safe,
-						raw_proposal: proposalConfig,
+						raw_proposal: {
+							...proposalConfig,
+							safeTxHash: hash
+						},
 						raw_script: readFileSync(resolve(context, proposalConfig.proposal), 'utf8'),
 						raw_command: command.replace(scdk.rpcUrl, '***'),
 						simulation_output: cleanedStdout,
