@@ -162,7 +162,8 @@ export default function loadCommand(command: Command): void {
 			}
 
 			if (error > 0) {
-				command.error("there's an error in one of the proposal manifests", { exitCode: error });
+				await exec(`echo "hasFailedProposals=true" >> $GITHUB_OUTPUT`);
+				console.log('writting "hasFailedProposals=true" ci output variable');
 			}
 		});
 }
