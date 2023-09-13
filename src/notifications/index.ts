@@ -1,5 +1,6 @@
 import { Block, KnownBlock, MessageAttachment, WebClient } from '@slack/web-api';
 import { utils } from 'ethers';
+import { keccak256 } from 'ethers/lib/utils';
 import { PopulatedSafe, Proposal, SafeCDKit, Transaction } from '../types';
 import { yamlToString } from '../utils/yamlToString';
 
@@ -51,6 +52,45 @@ export async function syncProposals(scdk: SafeCDKit): Promise<void> {
 				for (const msg of proposal.notifications.slack) {
 					if (hash.toLowerCase() !== msg.hash?.toLowerCase()) {
 						try {
+							if (msg.hash === undefined) {
+								const slack = await getWebClient();
+								const msgs = await slack.conversations.history({
+									channel: msg.channel
+								});
+								if (msgs && msgs.messages) {
+									const botInfo = await slack.auth.test();
+									const msgHash = keccak256(transaction.safeTxHash.toLowerCase()).toLocaleLowerCase();
+									if (botInfo.bot_id) {
+										for (const slMsg of msgs.messages) {
+											if (
+												slMsg.bot_id &&
+												slMsg.bot_id.toLowerCase() === botInfo.bot_id.toLowerCase()
+											) {
+												if (slMsg.attachments && slMsg.attachments.length > 0) {
+													const lastAttachment =
+														slMsg.attachments[slMsg.attachments.length - 1];
+													if (lastAttachment.blocks && lastAttachment.blocks.length > 0) {
+														const lastBlock =
+															lastAttachment.blocks[lastAttachment.blocks.length - 1];
+														if (
+															lastBlock.type === 'section' &&
+															lastBlock.text &&
+															lastBlock.text.type === 'mrkdwn' &&
+															lastBlock.text.text &&
+															lastBlock.text.text.includes(msgHash)
+														) {
+															msg.message = slMsg.ts as string;
+															console.log(
+																`Found slack message for proposal ${proposal.title}`
+															);
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
 							const id = await notifySlack(
 								scdk,
 								proposal,
@@ -60,8 +100,10 @@ export async function syncProposals(scdk: SafeCDKit): Promise<void> {
 								msg.channel,
 								msg.message
 							);
-							msg.hash = hash.toLowerCase();
-							msg.message = id;
+							if (id !== null) {
+								msg.hash = hash.toLowerCase();
+								msg.message = id;
+							}
 							if (!(transaction.isExecuted || (rejection && rejection.isExecuted))) {
 								updatedSlackNotifications.push(msg);
 							}
@@ -102,24 +144,28 @@ export const notifySlack = async (
 	safe: PopulatedSafe,
 	channel: string,
 	msgId: string | undefined
-): Promise<string> => {
+): Promise<string | null> => {
 	const slack = await getWebClient();
+	if (scdk.shouldUpload && scdk.shouldWrite) {
+		if (msgId === undefined) {
+			const newMsg = await slack.chat.postMessage({
+				channel,
+				...formatProposalSlackMessage(scdk, proposal, transaction, rejection, safe)
+			});
+			return newMsg.ts as string;
+		}
 
-	if (msgId === undefined) {
-		const newMsg = await slack.chat.postMessage({
+		await slack.chat.update({
 			channel,
+			ts: msgId,
 			...formatProposalSlackMessage(scdk, proposal, transaction, rejection, safe)
 		});
-		return newMsg.ts as string;
+
+		return msgId;
+	} else {
+		console.log(`Notification for proposal ${proposal.title} would be sent to slack`);
 	}
-
-	await slack.chat.update({
-		channel,
-		ts: msgId,
-		...formatProposalSlackMessage(scdk, proposal, transaction, rejection, safe)
-	});
-
-	return msgId;
+	return null;
 };
 
 interface MessagePayload {
@@ -467,7 +513,14 @@ ${getTxDecoding(transaction)}`
 									}
 								}
 						  ] as (KnownBlock | Block)[])
-						: [])
+						: []),
+					{
+						type: 'section',
+						text: {
+							type: 'mrkdwn',
+							text: `\`id=${keccak256(transaction.safeTxHash.toLowerCase()).toLocaleLowerCase()}\``
+						}
+					}
 				],
 				color: statusColor
 			}

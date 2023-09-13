@@ -107,9 +107,7 @@ export default function loadCommand(command: Command): void {
 				console.log('stage 3: done.');
 			}
 
-			if (scdk.shouldWrite && scdk.shouldUpload) {
-				await handleNotifications(scdk);
-			}
+			await handleNotifications(scdk);
 
 			console.log();
 			console.log('  ================================================  ');
