@@ -1,9 +1,15 @@
 name: 'safecd-sync'
 description: 'Reconcile git and safes'
 inputs:
+  command:
+    description: 'Command to run'
+    required: true
   rpc:
     description: 'Ethereum RPC url'
-    required: true
+    required: false
+  users:
+    description: 'Users to send reminders to'
+    required: false
 outputs:
   hasChanges:
     description: "Wether some changes occured during sync"
@@ -16,4 +22,6 @@ runs:
   image: 'Dockerfile'
   env:
     CI: true
+    COMMAND: ${{ inputs.command }}
     RPC: ${{ inputs.rpc }}
+    USERS: ${{ inputs.users }}
