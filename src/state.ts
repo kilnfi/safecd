@@ -306,7 +306,10 @@ export class State {
 				const safe = this.getSafeByAddress(proposal.safe);
 				if (transaction && safe) {
 					if (safe.owners.find(o => getAddress(o) === owner)) {
-						if (transaction.confirmations.length < safe.threshold) {
+						if (
+							transaction.confirmations.length < safe.threshold &&
+							transaction.confirmations.find(c => getAddress(c.owner) === getAddress(owner)) === undefined
+						) {
 							res.push(proposal);
 						}
 					}
