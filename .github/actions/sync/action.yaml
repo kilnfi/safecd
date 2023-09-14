@@ -1,4 +1,4 @@
-name: 'safecd'
+name: 'safecd-sync'
 description: 'Reconcile git and safes'
 inputs:
   rpc:

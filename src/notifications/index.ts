@@ -47,10 +47,10 @@ export async function syncProposals(scdk: SafeCDKit): Promise<void> {
 			const { notifications, ...hashableProposal } = proposal;
 			const hash = utils.hashMessage(
 				yamlToString(hashableProposal) +
-				yamlToString(transaction) +
-				yamlToString(rejection || {}) +
-				'THRESHOLD=' +
-				safe.threshold.toString()
+					yamlToString(transaction) +
+					yamlToString(rejection || {}) +
+					'THRESHOLD=' +
+					safe.threshold.toString()
 			);
 			if (proposal.notifications.slack) {
 				const updatedSlackNotifications = [];
@@ -358,35 +358,36 @@ ${proposal.description || ''}
 					...(transaction.isExecuted || (rejection && rejection.isExecuted)
 						? []
 						: ([
-							{
-								type: 'section',
-								fields: [
-									{
-										type: 'mrkdwn',
-										text: `<${getSafeTxLink(scdk, transaction)}|✅ *Click to approve* ✅>`
-									},
-									{
-										type: 'mrkdwn',
-										text: `<${getSafeTxLink(
-											scdk,
-											rejection || transaction
-										)}|❌ *Click to reject* ❌>`
-									}
-								]
-							},
-							{
-								type: 'divider'
-							}
-						] as (KnownBlock | Block)[])),
+								{
+									type: 'section',
+									fields: [
+										{
+											type: 'mrkdwn',
+											text: `<${getSafeTxLink(scdk, transaction)}|✅ *Click to approve* ✅>`
+										},
+										{
+											type: 'mrkdwn',
+											text: `<${getSafeTxLink(
+												scdk,
+												rejection || transaction
+											)}|❌ *Click to reject* ❌>`
+										}
+									]
+								},
+								{
+									type: 'divider'
+								}
+						  ] as (KnownBlock | Block)[])),
 
 					{
 						type: 'section',
 						text: {
 							type: 'mrkdwn',
-							text: `*Missing Signers*:\n${missingSigners.length === 0
+							text: `*Missing Signers*:\n${
+								missingSigners.length === 0
 									? 'All signers have signed'
 									: `\`${missingSigners.join('`, `')}\``
-								}`
+							}`
 						}
 					},
 					{
@@ -400,34 +401,36 @@ ${proposal.description || ''}
 							},
 							{
 								type: 'mrkdwn',
-								text: `*Signers*:\n${confirmationSigners.length === 0
+								text: `*Signers*:\n${
+									confirmationSigners.length === 0
 										? 'No confirmations'
 										: `\`${confirmationSigners.join('`, `')}\``
-									}`
+								}`
 							}
 						]
 					},
 					...(rejection !== null
 						? ([
-							{
-								type: 'section',
-								fields: [
-									{
-										type: 'mrkdwn',
-										text:
-											'*Rejections:*\n' +
-											getRejectionIcons(rejection.confirmations.length, safe.threshold)
-									},
-									{
-										type: 'mrkdwn',
-										text: `*Signers*:\n${rejectionSigners.length === 0
-												? 'No rejections'
-												: `\`${rejectionSigners.join('`, `')}\``
+								{
+									type: 'section',
+									fields: [
+										{
+											type: 'mrkdwn',
+											text:
+												'*Rejections:*\n' +
+												getRejectionIcons(rejection.confirmations.length, safe.threshold)
+										},
+										{
+											type: 'mrkdwn',
+											text: `*Signers*:\n${
+												rejectionSigners.length === 0
+													? 'No rejections'
+													: `\`${rejectionSigners.join('`, `')}\``
 											}`
-									}
-								]
-							}
-						] as (KnownBlock | Block)[])
+										}
+									]
+								}
+						  ] as (KnownBlock | Block)[])
 						: []),
 					{
 						type: 'divider'
@@ -470,49 +473,51 @@ ${getTxDecoding(transaction)}`
 						type: 'section',
 						text: {
 							type: 'mrkdwn',
-							text: `*Safe Transaction Hash*:\n<${getSafeTxLink(scdk, transaction)}|\`${transaction.safeTxHash
-								}\`>`
+							text: `*Safe Transaction Hash*:\n<${getSafeTxLink(scdk, transaction)}|\`${
+								transaction.safeTxHash
+							}\`>`
 						}
 					},
 					...(rejection !== null
 						? ([
-							{
-								type: 'section',
-								text: {
-									type: 'mrkdwn',
-									text: `*Safe Rejection Transaction Hash*:\n<${getSafeTxLink(
-										scdk,
-										rejection
-									)}|\`${rejection.safeTxHash}\`>`
+								{
+									type: 'section',
+									text: {
+										type: 'mrkdwn',
+										text: `*Safe Rejection Transaction Hash*:\n<${getSafeTxLink(
+											scdk,
+											rejection
+										)}|\`${rejection.safeTxHash}\`>`
+									}
 								}
-							}
-						] as (KnownBlock | Block)[])
+						  ] as (KnownBlock | Block)[])
 						: []),
 					...(transaction.isExecuted
 						? ([
-							{
-								type: 'section',
-								text: {
-									type: 'mrkdwn',
-									text: `*Transaction Hash*:\n<${getTxExplorerLink(scdk, transaction)}|\`${transaction.transactionHash
+								{
+									type: 'section',
+									text: {
+										type: 'mrkdwn',
+										text: `*Transaction Hash*:\n<${getTxExplorerLink(scdk, transaction)}|\`${
+											transaction.transactionHash
 										}\`>`
+									}
 								}
-							}
-						] as (KnownBlock | Block)[])
+						  ] as (KnownBlock | Block)[])
 						: []),
 					...(rejection && rejection.isExecuted
 						? ([
-							{
-								type: 'section',
-								text: {
-									type: 'mrkdwn',
-									text: `*Rejection Transaction Hash*:\n<${getTxExplorerLink(
-										scdk,
-										rejection
-									)}|\`${rejection.transactionHash}\`>`
+								{
+									type: 'section',
+									text: {
+										type: 'mrkdwn',
+										text: `*Rejection Transaction Hash*:\n<${getTxExplorerLink(
+											scdk,
+											rejection
+										)}|\`${rejection.transactionHash}\`>`
+									}
 								}
-							}
-						] as (KnownBlock | Block)[])
+						  ] as (KnownBlock | Block)[])
 						: []),
 					{
 						type: 'section',
