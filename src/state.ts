@@ -1,4 +1,5 @@
 import { utils } from 'ethers';
+import { getAddress } from 'ethers/lib/utils';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { dirname, join, relative, resolve } from 'path';
 import { promisify } from 'util';
@@ -294,6 +295,30 @@ export class State {
 			return null;
 		}
 		return this.transactions[transactionIndex].entity;
+	}
+
+	getPendingProposalsByOwner(owner: string): Proposal[] {
+		const res: Proposal[] = [];
+		for (const proposalEntity of this.proposals) {
+			const proposal = proposalEntity.entity;
+			if (proposal.safeTxHash) {
+				const transaction = this.getTransactionByHash(proposal.safeTxHash);
+				const safe = this.getSafeByAddress(proposal.safe);
+				if (transaction && safe) {
+					if (safe.owners.find(o => getAddress(o) === owner)) {
+						if (transaction.confirmations.length < safe.threshold) {
+							res.push(proposal);
+						}
+					}
+				}
+			}
+		}
+
+		return res.sort((a, b) => {
+			const txA = this.getTransactionByHash(a.safeTxHash!);
+			const txB = this.getTransactionByHash(b.safeTxHash!);
+			return new Date(txA!.submissionDate).getTime() - new Date(txB!.submissionDate).getTime();
+		});
 	}
 
 	async load(): Promise<void> {

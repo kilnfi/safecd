@@ -1,7 +1,8 @@
 import { Block, KnownBlock, MessageAttachment, WebClient } from '@slack/web-api';
 import { utils } from 'ethers';
 import { keccak256 } from 'ethers/lib/utils';
-import { PopulatedSafe, Proposal, SafeCDKit, Transaction } from '../types';
+import { State } from '../state';
+import { EOA, PopulatedSafe, Proposal, SafeCDKit, Transaction } from '../types';
 import { yamlToString } from '../utils/yamlToString';
 
 const safeTxLinkByNetwork: { [key: string]: string } = {
@@ -16,6 +17,10 @@ const explorerByNetwork: { [key: string]: string } = {
 
 function getSafeTxLink(scdk: SafeCDKit, tx: Transaction): string {
 	return `${safeTxLinkByNetwork[scdk.network]}${tx.safe}&id=multisig_${tx.safe}_${tx.safeTxHash}`;
+}
+
+function getSafeTxLinkOnNetwork(network: string, tx: Transaction): string {
+	return `${safeTxLinkByNetwork[network]}${tx.safe}&id=multisig_${tx.safe}_${tx.safeTxHash}`;
 }
 
 function getAddressExplorerLink(scdk: SafeCDKit, address: string): string {
@@ -42,10 +47,10 @@ export async function syncProposals(scdk: SafeCDKit): Promise<void> {
 			const { notifications, ...hashableProposal } = proposal;
 			const hash = utils.hashMessage(
 				yamlToString(hashableProposal) +
-					yamlToString(transaction) +
-					yamlToString(rejection || {}) +
-					'THRESHOLD=' +
-					safe.threshold.toString()
+				yamlToString(transaction) +
+				yamlToString(rejection || {}) +
+				'THRESHOLD=' +
+				safe.threshold.toString()
 			);
 			if (proposal.notifications.slack) {
 				const updatedSlackNotifications = [];
@@ -353,36 +358,35 @@ ${proposal.description || ''}
 					...(transaction.isExecuted || (rejection && rejection.isExecuted)
 						? []
 						: ([
-								{
-									type: 'section',
-									fields: [
-										{
-											type: 'mrkdwn',
-											text: `<${getSafeTxLink(scdk, transaction)}|✅ *Click to approve* ✅>`
-										},
-										{
-											type: 'mrkdwn',
-											text: `<${getSafeTxLink(
-												scdk,
-												rejection || transaction
-											)}|❌ *Click to reject* ❌>`
-										}
-									]
-								},
-								{
-									type: 'divider'
-								}
-						  ] as (KnownBlock | Block)[])),
+							{
+								type: 'section',
+								fields: [
+									{
+										type: 'mrkdwn',
+										text: `<${getSafeTxLink(scdk, transaction)}|✅ *Click to approve* ✅>`
+									},
+									{
+										type: 'mrkdwn',
+										text: `<${getSafeTxLink(
+											scdk,
+											rejection || transaction
+										)}|❌ *Click to reject* ❌>`
+									}
+								]
+							},
+							{
+								type: 'divider'
+							}
+						] as (KnownBlock | Block)[])),
 
 					{
 						type: 'section',
 						text: {
 							type: 'mrkdwn',
-							text: `*Missing Signers*:\n${
-								missingSigners.length === 0
+							text: `*Missing Signers*:\n${missingSigners.length === 0
 									? 'All signers have signed'
 									: `\`${missingSigners.join('`, `')}\``
-							}`
+								}`
 						}
 					},
 					{
@@ -396,36 +400,34 @@ ${proposal.description || ''}
 							},
 							{
 								type: 'mrkdwn',
-								text: `*Signers*:\n${
-									confirmationSigners.length === 0
+								text: `*Signers*:\n${confirmationSigners.length === 0
 										? 'No confirmations'
 										: `\`${confirmationSigners.join('`, `')}\``
-								}`
+									}`
 							}
 						]
 					},
 					...(rejection !== null
 						? ([
-								{
-									type: 'section',
-									fields: [
-										{
-											type: 'mrkdwn',
-											text:
-												'*Rejections:*\n' +
-												getRejectionIcons(rejection.confirmations.length, safe.threshold)
-										},
-										{
-											type: 'mrkdwn',
-											text: `*Signers*:\n${
-												rejectionSigners.length === 0
-													? 'No rejections'
-													: `\`${rejectionSigners.join('`, `')}\``
+							{
+								type: 'section',
+								fields: [
+									{
+										type: 'mrkdwn',
+										text:
+											'*Rejections:*\n' +
+											getRejectionIcons(rejection.confirmations.length, safe.threshold)
+									},
+									{
+										type: 'mrkdwn',
+										text: `*Signers*:\n${rejectionSigners.length === 0
+												? 'No rejections'
+												: `\`${rejectionSigners.join('`, `')}\``
 											}`
-										}
-									]
-								}
-						  ] as (KnownBlock | Block)[])
+									}
+								]
+							}
+						] as (KnownBlock | Block)[])
 						: []),
 					{
 						type: 'divider'
@@ -468,51 +470,49 @@ ${getTxDecoding(transaction)}`
 						type: 'section',
 						text: {
 							type: 'mrkdwn',
-							text: `*Safe Transaction Hash*:\n<${getSafeTxLink(scdk, transaction)}|\`${
-								transaction.safeTxHash
-							}\`>`
+							text: `*Safe Transaction Hash*:\n<${getSafeTxLink(scdk, transaction)}|\`${transaction.safeTxHash
+								}\`>`
 						}
 					},
 					...(rejection !== null
 						? ([
-								{
-									type: 'section',
-									text: {
-										type: 'mrkdwn',
-										text: `*Safe Rejection Transaction Hash*:\n<${getSafeTxLink(
-											scdk,
-											rejection
-										)}|\`${rejection.safeTxHash}\`>`
-									}
+							{
+								type: 'section',
+								text: {
+									type: 'mrkdwn',
+									text: `*Safe Rejection Transaction Hash*:\n<${getSafeTxLink(
+										scdk,
+										rejection
+									)}|\`${rejection.safeTxHash}\`>`
 								}
-						  ] as (KnownBlock | Block)[])
+							}
+						] as (KnownBlock | Block)[])
 						: []),
 					...(transaction.isExecuted
 						? ([
-								{
-									type: 'section',
-									text: {
-										type: 'mrkdwn',
-										text: `*Transaction Hash*:\n<${getTxExplorerLink(scdk, transaction)}|\`${
-											transaction.transactionHash
+							{
+								type: 'section',
+								text: {
+									type: 'mrkdwn',
+									text: `*Transaction Hash*:\n<${getTxExplorerLink(scdk, transaction)}|\`${transaction.transactionHash
 										}\`>`
-									}
 								}
-						  ] as (KnownBlock | Block)[])
+							}
+						] as (KnownBlock | Block)[])
 						: []),
 					...(rejection && rejection.isExecuted
 						? ([
-								{
-									type: 'section',
-									text: {
-										type: 'mrkdwn',
-										text: `*Rejection Transaction Hash*:\n<${getTxExplorerLink(
-											scdk,
-											rejection
-										)}|\`${rejection.transactionHash}\`>`
-									}
+							{
+								type: 'section',
+								text: {
+									type: 'mrkdwn',
+									text: `*Rejection Transaction Hash*:\n<${getTxExplorerLink(
+										scdk,
+										rejection
+									)}|\`${rejection.transactionHash}\`>`
 								}
-						  ] as (KnownBlock | Block)[])
+							}
+						] as (KnownBlock | Block)[])
 						: []),
 					{
 						type: 'section',
@@ -543,4 +543,136 @@ function getRejectionIcons(confirmationCount: number, threshold: number): string
 
 export const handleNotifications = async (scdk: SafeCDKit): Promise<void> => {
 	await syncProposals(scdk);
+};
+
+const colorBasedOnTime = (minutes: number): string => {
+	if (minutes < 60) {
+		return '#339900';
+	}
+	if (minutes < 60 * 4) {
+		return '#99cc33';
+	}
+	if (minutes < 60 * 8) {
+		return '#ffcc00';
+	}
+	if (minutes < 60 * 12) {
+		return '#ff9966';
+	}
+	return '#cc3300';
+};
+
+const craftReminder = (proposals: Proposal[], state: State, eoa: EOA, network: string): any => {
+	return {
+		attachments: [
+			{
+				blocks: [
+					{
+						type: 'section',
+						text: {
+							type: 'mrkdwn',
+							text: `*Pending Proposals*:\n\`${proposals.length}\``
+						}
+					},
+					{
+						type: 'section',
+						text: {
+							type: 'mrkdwn',
+							text: `*EOA*:\n\`${eoa.name}\``
+						}
+					}
+				]
+			},
+			...proposals
+				.map(proposal => {
+					const safe = state.getSafeByAddress(proposal.safe);
+					const transaction = state.getTransactionByHash(proposal.safeTxHash!);
+					const timeSinceSubmission = Math.floor(
+						(Date.now() - new Date(transaction!.submissionDate).getTime()) / 1000 / 60
+					);
+					return {
+						blocks: [
+							{
+								type: 'section',
+								text: {
+									type: 'mrkdwn',
+									text: `*Title*:\n${proposal.title}`
+								}
+							},
+							{
+								type: 'section',
+								text: {
+									type: 'mrkdwn',
+									text: `*Description*:\n${proposal.description}`
+								}
+							},
+							{
+								type: 'section',
+								fields: [
+									{
+										type: 'mrkdwn',
+										text: `*From*:\n\`${safe!.name}\``
+									},
+									{
+										type: 'mrkdwn',
+										text: `*To*:\n${transaction!.to}`
+									}
+								]
+							},
+							{
+								type: 'section',
+								text: {
+									type: 'mrkdwn',
+									text: `<${getSafeTxLinkOnNetwork(network, transaction!)}|*CLICK TO APPROVE*>`
+								}
+							}
+						],
+						color: '#ff0000'
+					};
+				})
+				.flat()
+		],
+		text: `<!here> You have ${proposals.length} pending proposals !`,
+		username: `safecd reminders`,
+		unfurl_links: false,
+		unfurl_media: false
+	};
+};
+
+export const handleReminders = async (users: string, state: State, shouldWrite: boolean): Promise<void> => {
+	const userList = users.split(';') || [];
+	const slack = await getWebClient();
+	for (const user of userList) {
+		const [eoa, slackId, timezone] = user.split(':');
+		const options = {
+			timeZone: timezone,
+			hour: '2-digit',
+			hour12: false
+		};
+		const hour = parseInt(new Intl.DateTimeFormat([], options as any).format(new Date()));
+		if (![10, 14, 18].includes(hour)) {
+			continue;
+		}
+		console.log(`Computing reminders for ${eoa} in ${timezone}`);
+		const eoaEntity = state.getEOAByAddress(eoa);
+		if (eoaEntity === null) {
+			throw new Error(`EOA ${eoa} not found`);
+		}
+		const proposals = state.getPendingProposalsByOwner(eoa);
+		if (proposals.length === 0) {
+			continue;
+		}
+		const msg = craftReminder(proposals, state, eoaEntity, state.config.network);
+		if (shouldWrite) {
+			const conv = await slack.conversations.open({
+				users: slackId
+			});
+			await slack.chat.postMessage({
+				channel: conv.channel?.id || slackId,
+				...msg
+			});
+			console.log(`Reminder for ${eoaEntity.name} sent to slack`);
+		} else {
+			console.log(`Reminder for ${eoaEntity.name} would be sent to slack`);
+		}
+	}
 };

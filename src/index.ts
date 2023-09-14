@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import loadAddDelegateCommand from './commands/addDelegate';
 import loadInitCommand from './commands/init';
+import loadRemindersCommand from './commands/reminders';
 import loadSyncCommand from './commands/sync';
 const packageJson = require('../package.json');
 
@@ -13,5 +14,6 @@ program.name('safecd').description('Reconcile git repository with safes').versio
 loadSyncCommand(program);
 loadInitCommand(program);
 loadAddDelegateCommand(program);
+loadRemindersCommand(program);
 
 program.parse();
