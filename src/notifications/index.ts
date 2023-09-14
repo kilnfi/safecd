@@ -654,6 +654,7 @@ export const handleReminders = async (users: string, state: State, shouldWrite: 
 			hour12: false
 		};
 		const hour = parseInt(new Intl.DateTimeFormat([], options as any).format(new Date()));
+		console.log(`Checking is it's time for reminders for ${eoa} in ${timezone}`);
 		if (![10, 14, 18].includes(hour)) {
 			continue;
 		}
