@@ -41,7 +41,10 @@ export default function loadCommand(command: Command): void {
 			console.log('  ================================================  ');
 			console.log();
 
-			const pks = process.env.PRIVATE_KEYS?.split(',') || [];
+			const pks =
+				process.env.PRIVATE_KEYS !== undefined && process.env.PRIVATE_KEYS.length > 0
+					? process.env.PRIVATE_KEYS.split(',')
+					: [];
 			if (process.env.CI === 'true') {
 				console.log(`  ci=true`);
 			}
@@ -56,11 +59,18 @@ export default function loadCommand(command: Command): void {
 			const provider = new ethers.providers.JsonRpcProvider(options.rpc);
 			const signers: { [key: string]: ethers.Signer } = {};
 			let loaded = false;
+			let pkIdx = 0;
 			for (const pk of pks) {
-				loaded = true;
-				const signer = new ethers.Wallet(pk, provider);
-				signers[utils.getAddress(signer.address)] = signer;
-				console.log(`  loaded signer for ${await signer.address}`);
+				try {
+					loaded = true;
+					const signer = new ethers.Wallet(pk, provider);
+					signers[utils.getAddress(signer.address)] = signer;
+					console.log(`  loaded signer for ${await signer.address}`);
+					pkIdx += 1;
+				} catch (e) {
+					console.log(`  failed to load signer for PK at index ${pkIdx}`);
+					throw e;
+				}
 			}
 			if (loaded) {
 				console.log();
