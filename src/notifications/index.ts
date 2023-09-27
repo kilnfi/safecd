@@ -631,7 +631,7 @@ const craftReminder = (proposals: Proposal[], state: State, eoa: EOA, network: s
 								}
 							}
 						],
-						color: '#ff0000'
+						color: colorBasedOnTime(timeSinceSubmission)
 					};
 				})
 				.flat()
