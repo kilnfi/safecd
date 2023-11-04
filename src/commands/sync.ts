@@ -141,8 +141,10 @@ export default function loadCommand(command: Command): void {
 				if (saveResult.commit.creations + saveResult.commit.edits + saveResult.commit.deletions > 0) {
 					const COMMIT_MSG = `create=${saveResult.commit.creations} edit=${saveResult.commit.edits} delete=${saveResult.commit.deletions}\n\n${saveResult.commit.message}\n\n[skip ci]\n`;
 					writeFileSync('COMMIT_MSG', COMMIT_MSG, { encoding: 'utf8' });
-					await exec(`echo "hasChanges=true" >> $GITHUB_OUTPUT`);
-					console.log('writting "hasChanged=true" ci output variable');
+					if (process.env.CI === 'true') {
+						await exec(`echo "hasChanges=true" >> $GITHUB_OUTPUT`);
+						console.log('writting "hasChanged=true" ci output variable');
+					}
 				} else if (existsSync('COMMIT_MSG')) {
 					unlinkSync('COMMIT_MSG');
 				}

@@ -8,17 +8,95 @@ import { ForgeTransaction, Label, Manifest, PopulatedSafe, Proposal, SafeCDKit }
 import { whereBin } from '../utils/binExists';
 import { noColor } from '../utils/noColor';
 import { yamlToString } from '../utils/yamlToString';
+const safeEval = require('safe-eval');
 const exec = promisify(require('child_process').exec);
 
 export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 	let hasProposedOne = false;
+	const proposalIndexes = [];
 	for (let proposalIdx = 0; proposalIdx < scdk.state.proposals.length; ++proposalIdx) {
 		const proposal = scdk.state.proposals[proposalIdx].entity;
 		if (proposal.childOf === undefined) {
-			const fileName = basename(scdk.state.proposals[proposalIdx].path);
+			proposalIndexes.push(proposalIdx);
+		}
+	}
+
+	const nonces: { [key: string]: number } = {};
+	const proposals: { [key: string]: { idx: number; proposal: Proposal; nonce: number }[] } = {};
+	// resolve proposals and nonces
+	for (const proposalIndex of proposalIndexes) {
+		const proposal = scdk.state.proposals[proposalIndex].entity;
+		const safe = scdk.state.getSafeByAddress(proposal.safe) as PopulatedSafe;
+		if (safe === null) {
+			throw new Error(`Safe ${proposal.safe} not found`);
+		}
+		if (nonces[utils.getAddress(safe.address)] === undefined) {
+			const highestNonce = scdk.state.getHighestProposalNonce(safe);
+			nonces[utils.getAddress(safe.address)] = highestNonce ? highestNonce + 1 : 0;
+		}
+		if (proposals[utils.getAddress(safe.address)] === undefined) {
+			proposals[utils.getAddress(safe.address)] = [];
+		}
+		let resolvedProposalNonce;
+		if (proposal.nonce !== undefined) {
+			try {
+				resolvedProposalNonce = parseInt(proposal.nonce);
+				if (isNaN(resolvedProposalNonce)) {
+					throw new Error(`Invalid nonce ${proposal.nonce} for proposal ${proposal.title}`);
+				}
+			} catch (e) {
+				// eval nonce
+				try {
+					resolvedProposalNonce = safeEval(`function getNonce(x) {return ${proposal.nonce};}`)(
+						nonces[utils.getAddress(safe.address)]
+					);
+				} catch (e) {
+					throw new Error(`Invalid nonce expression ${proposal.nonce} for proposal ${proposal.title}`);
+				}
+			}
+			proposals[utils.getAddress(safe.address)].push({
+				idx: proposalIndex,
+				proposal,
+				nonce: resolvedProposalNonce
+			});
+		}
+	}
+
+	for (const proposalIndex of proposalIndexes) {
+		const proposal = scdk.state.proposals[proposalIndex].entity;
+		const safe = scdk.state.getSafeByAddress(proposal.safe) as PopulatedSafe;
+		let highestAvailableNonce = nonces[utils.getAddress(safe.address)];
+		for (const { nonce } of proposals[utils.getAddress(safe.address)]) {
+			if (nonce + 1 > highestAvailableNonce) {
+				highestAvailableNonce = nonce + 1;
+			}
+		}
+		if (proposal.nonce === undefined) {
+			proposals[utils.getAddress(safe.address)].push({
+				idx: proposalIndex,
+				proposal,
+				nonce: highestAvailableNonce
+			});
+			nonces[utils.getAddress(safe.address)] = highestAvailableNonce + 1;
+		}
+	}
+
+	const nonceCache: { [key: string]: number } = {};
+	for (const safe of Object.keys(proposals)) {
+		proposals[safe] = proposals[safe].sort((a, b) => a.nonce - b.nonce);
+		for (const proposal of proposals[safe]) {
+			const fileName = basename(scdk.state.proposals[proposal.idx].path);
 			const prefix = fileName.slice(0, fileName.indexOf('.proposal.yaml'));
-			const path = dirname(scdk.state.proposals[proposalIdx].path);
-			const proposals = await syncProposal(scdk, proposal, path, prefix, fileName);
+			const path = dirname(scdk.state.proposals[proposal.idx].path);
+			const proposals = await syncProposal(
+				scdk,
+				proposal.proposal,
+				path,
+				prefix,
+				fileName,
+				proposal.nonce,
+				nonceCache
+			);
 			for (const [proposal, manifest, prefixToUse, hasProposed] of proposals) {
 				if (manifest !== null) {
 					const manifestYaml = yamlToString(manifest);
@@ -39,6 +117,7 @@ export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 			}
 		}
 	}
+
 	return hasProposedOne;
 }
 
@@ -79,21 +158,6 @@ function formatAllLabels(labels: { [name: string]: string }): string {
 		res.push(name);
 	}
 	return res.join(',');
-}
-
-function transformArguments(args: string[], labels: { [name: string]: string }): string[] {
-	const res = [];
-	for (const arg of args) {
-		res.push(
-			arg.replace(/\[\[([^\[\]]*)\]\]/gim, (match, p1) => {
-				if (labels[p1] === undefined) {
-					throw new Error(`Label ${p1} not found`);
-				}
-				return labels[p1];
-			})
-		);
-	}
-	return res;
 }
 
 async function isEOA(address: string, scdk: SafeCDKit): Promise<boolean> {
@@ -195,8 +259,11 @@ async function syncProposal(
 	proposalConfig: Proposal,
 	context: string,
 	prefix: string,
-	proposal: string
+	proposal: string,
+	nonce: number,
+	nonceCache: { [key: string]: number }
 ): Promise<[Proposal, Manifest | null, string, boolean][]> {
+	console.log(`syncing proposal ${resolve(context, proposal)}`, nonce);
 	if (proposalConfig.safeTxHash) {
 		return [[proposalConfig, null, prefix, false]];
 	}
@@ -214,10 +281,11 @@ async function syncProposal(
 				data: new Interface(['function approveHash(bytes32 hash)']).encodeFunctionData('approveHash', [
 					proposalConfig.childOf.hash
 				]),
-				operation: 0
+				operation: 0,
+				nonce
 			},
 			options: {
-				nonce: proposalConfig.nonce
+				nonce
 			}
 		});
 		let estimationRes;
@@ -296,6 +364,12 @@ ${proposalConfig.description}
 						} else {
 							await scdk.state.writeProposal(proposalIndex, childProposalConfig);
 						}
+						if (nonceCache[utils.getAddress(ownerSafe.address)] === undefined) {
+							const highestNonce = scdk.state.getHighestProposalNonce(ownerSafe);
+							nonceCache[utils.getAddress(ownerSafe.address)] = highestNonce ? highestNonce + 1 : 0;
+						}
+						const nonceToUse = nonceCache[utils.getAddress(ownerSafe.address)];
+						nonceCache[utils.getAddress(ownerSafe.address)] = nonceToUse + 1;
 						childResults = [
 							...childResults,
 							...(await syncProposal(
@@ -303,7 +377,9 @@ ${proposalConfig.description}
 								childProposalConfig,
 								context,
 								`${hash}.${ownerIdx}.child`,
-								`${hash}.${ownerIdx}.child.proposal.yaml`
+								`${hash}.${ownerIdx}.child.proposal.yaml`,
+								nonceToUse,
+								nonceCache
 							))
 						];
 					}
@@ -349,6 +425,7 @@ ${proposalConfig.description}
 			}
 
 			proposalConfig.safeTxHash = hash;
+			proposalConfig.nonce = safeTx.data.nonce.toString();
 			if (safe.notifications) {
 				proposalConfig.notifications = {};
 				if (safe.notifications.slack) {
@@ -471,10 +548,11 @@ ${proposalConfig.description}
 						to: utils.getAddress(tx.transaction.to),
 						value: BigInt(tx.transaction.value).toString(),
 						data: tx.transaction.data,
-						operation: 0
+						operation: 0,
+						nonce
 					})),
 					options: {
-						nonce: proposalConfig.nonce
+						nonce
 					}
 				});
 			} else {
@@ -483,10 +561,11 @@ ${proposalConfig.description}
 						to: utils.getAddress(txs[0].transaction.to),
 						value: BigInt(txs[0].transaction.value).toString(),
 						data: txs[0].transaction.data,
-						operation: 0
+						operation: 0,
+						nonce
 					},
 					options: {
-						nonce: proposalConfig.nonce
+						nonce
 					}
 				});
 			}
@@ -566,6 +645,12 @@ ${proposalConfig.description}
 							} else {
 								await scdk.state.writeProposal(proposalIndex, childProposalConfig);
 							}
+							if (nonceCache[utils.getAddress(ownerSafe.address)] === undefined) {
+								const highestNonce = scdk.state.getHighestProposalNonce(ownerSafe);
+								nonceCache[utils.getAddress(ownerSafe.address)] = highestNonce ? highestNonce + 1 : 0;
+							}
+							const nonceToUse = nonceCache[utils.getAddress(ownerSafe.address)];
+							nonceCache[utils.getAddress(ownerSafe.address)] = nonceToUse + 1;
 							childResults = [
 								...childResults,
 								...(await syncProposal(
@@ -573,7 +658,9 @@ ${proposalConfig.description}
 									childProposalConfig,
 									context,
 									`${hash}.${ownerIdx}.child`,
-									`${hash}.${ownerIdx}.child.proposal.yaml`
+									`${hash}.${ownerIdx}.child.proposal.yaml`,
+									nonceToUse,
+									nonceCache
 								))
 							];
 						}
@@ -619,6 +706,7 @@ ${proposalConfig.description}
 				}
 
 				proposalConfig.safeTxHash = hash;
+				proposalConfig.nonce = safeTx.data.nonce.toString();
 				if (safe.notifications) {
 					proposalConfig.notifications = {};
 					if (safe.notifications.slack) {

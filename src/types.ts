@@ -92,7 +92,7 @@ export const ProposalSchema = z.object({
 			hash: z.string()
 		})
 		.optional(),
-	nonce: z.number().optional(),
+	nonce: z.string().optional(),
 	arguments: z.any().optional(),
 	safeTxHash: z.string().optional(),
 	labels: z.array(LabelSchema).optional(),

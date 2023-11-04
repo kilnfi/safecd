@@ -244,6 +244,18 @@ export class State {
 		return -1;
 	}
 
+	getHighestProposalNonce(safe: PopulatedSafe): number | null {
+		const transactionIndexes = this.transactionBySafe[utils.getAddress(safe.address)];
+		let maxNonce = 0;
+		for (const transactionIndex of transactionIndexes) {
+			const transaction = this.transactions[transactionIndex].entity;
+			if (transaction.nonce !== undefined && transaction.nonce > maxNonce) {
+				maxNonce = transaction.nonce;
+			}
+		}
+		return maxNonce;
+	}
+
 	getSafeByName(name: string): PopulatedSafe | null {
 		const safeIndex = this.safeByName[name];
 		if (safeIndex === undefined) {
