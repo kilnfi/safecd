@@ -101,6 +101,22 @@ ${
 		  )
 }
 
+### Owner Leaderboard
+
+<table>
+
+<tr>
+<td>Owner</td>
+<td>Score</td>
+<td>Signatures</td>
+<td>Executions</td>
+</tr>
+
+${formatOwnerLeaderboard(scdk, safe)}
+
+</table
+
+
 ### Transaction History
 
 <details>
@@ -180,6 +196,54 @@ ${tx.dataDecoded.method}(
 
 function getProposalOfSafeHash(scdk: SafeCDKit, hash: string): [string | null, Proposal | null] {
 	return [scdk.state.getProposalPathByHash(hash), scdk.state.getProposalByHash(hash)];
+}
+
+function formatOwnerLeaderboard(scdk: SafeCDKit, safe: PopulatedSafe): string {
+	let content = '';
+	const txs = getAllSafeTransactions(scdk, safe);
+	const ownerScores: { [key: string]: number } = {};
+	const ownerSignatures: { [key: string]: number } = {};
+	const ownerExecutions: { [key: string]: number } = {};
+	for (const tx of txs) {
+		if (tx.isExecuted) {
+			ownerExecutions[(tx.executor as string).toLowerCase()] =
+				(ownerExecutions[(tx.executor as string).toLowerCase()] || 0) + 1;
+			ownerScores[(tx.executor as string).toLowerCase()] =
+				(ownerScores[(tx.executor as string).toLowerCase()] || 0) + 1;
+		}
+		for (const confirmation of tx.confirmations) {
+			ownerSignatures[confirmation.owner.toLowerCase()] =
+				(ownerSignatures[confirmation.owner.toLowerCase()] || 0) + 1;
+			ownerScores[confirmation.owner.toLowerCase()] = (ownerScores[confirmation.owner.toLowerCase()] || 0) + 1;
+		}
+	}
+	const owners = Object.keys(ownerScores)
+		.map(owner => {
+			return {
+				owner,
+				score: ownerScores[owner] || 0,
+				signatures: ownerSignatures[owner] || 0,
+				executions: ownerExecutions[owner] || 0
+			};
+		})
+		.sort((a, b) => b.score - a.score);
+
+	let idx = 0;
+	const medals = ['🥇', '🥈', '🥉'];
+
+	for (const owner of owners) {
+		content += `
+<tr>
+<td>${idx < medals.length ? `${medals[idx]} ` : ' '}${getNameAndType(scdk, owner.owner)}</td>
+<td>${owner.score}</td>
+<td>${owner.signatures}</td>
+<td>${owner.executions}</td>
+</tr>
+`;
+		++idx;
+	}
+
+	return content;
 }
 
 function formatSafeTransactions(scdk: SafeCDKit, safe: PopulatedSafe, txs: Transaction[]): string {
