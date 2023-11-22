@@ -385,7 +385,7 @@ ${proposalConfig.description}
 						if (nonceCache[utils.getAddress(ownerSafe.address)] === undefined) {
 							const pendingNonce = scdk.state.getHighestProposalNonce(safe);
 							const nonce = scdk.state.getHighestExecutedProposalNonce(safe);
-							nonceCache[utils.getAddress(safe.address)] = {
+							nonceCache[utils.getAddress(ownerSafe.address)] = {
 								nonce: nonce != null ? nonce + 1 : 0,
 								pendingNonce: pendingNonce != null ? pendingNonce + 1 : 0,
 								auto: nonce != null ? nonce + 1 : 0
@@ -670,7 +670,7 @@ ${proposalConfig.description}
 							if (nonceCache[utils.getAddress(ownerSafe.address)] === undefined) {
 								const pendingNonce = scdk.state.getHighestProposalNonce(safe);
 								const nonce = scdk.state.getHighestExecutedProposalNonce(safe);
-								nonceCache[utils.getAddress(safe.address)] = {
+								nonceCache[utils.getAddress(ownerSafe.address)] = {
 									nonce: nonce != null ? nonce + 1 : 0,
 									pendingNonce: pendingNonce != null ? pendingNonce + 1 : 0,
 									auto: nonce != null ? nonce + 1 : 0
