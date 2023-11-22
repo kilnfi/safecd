@@ -11,6 +11,12 @@ import { yamlToString } from '../utils/yamlToString';
 const safeEval = require('safe-eval');
 const exec = promisify(require('child_process').exec);
 
+interface NonceData {
+	nonce: number;
+	pendingNonce: number;
+	auto: number;
+}
+
 export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 	let hasProposedOne = false;
 	const proposalIndexes = [];
@@ -21,7 +27,7 @@ export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 		}
 	}
 
-	const nonces: { [key: string]: number } = {};
+	const nonces: { [key: string]: NonceData } = {};
 	const proposals: { [key: string]: { idx: number; proposal: Proposal; nonce: number }[] } = {};
 	// resolve proposals and nonces
 	for (const proposalIndex of proposalIndexes) {
@@ -31,8 +37,13 @@ export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 			throw new Error(`Safe ${proposal.safe} not found`);
 		}
 		if (nonces[utils.getAddress(safe.address)] === undefined) {
-			const highestNonce = scdk.state.getHighestProposalNonce(safe);
-			nonces[utils.getAddress(safe.address)] = highestNonce ? highestNonce + 1 : 0;
+			const pendingNonce = scdk.state.getHighestProposalNonce(safe);
+			const nonce = scdk.state.getHighestExecutedProposalNonce(safe);
+			nonces[utils.getAddress(safe.address)] = {
+				nonce: nonce != null ? nonce + 1 : 0,
+				pendingNonce: pendingNonce != null ? pendingNonce + 1 : 0,
+				auto: nonce != null ? nonce + 1 : 0
+			};
 		}
 		if (proposals[utils.getAddress(safe.address)] === undefined) {
 			proposals[utils.getAddress(safe.address)] = [];
@@ -47,9 +58,22 @@ export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 			} catch (e) {
 				// eval nonce
 				try {
-					resolvedProposalNonce = safeEval(`function getNonce(x) {return ${proposal.nonce};}`)(
-						nonces[utils.getAddress(safe.address)]
+					resolvedProposalNonce = safeEval(
+						`function getNonce(a,auto,n,nonce,pn,pendingNonce) {return ${proposal.nonce};}`
+					)(
+						nonces[utils.getAddress(safe.address)].auto,
+						nonces[utils.getAddress(safe.address)].auto,
+						nonces[utils.getAddress(safe.address)].nonce,
+						nonces[utils.getAddress(safe.address)].nonce,
+						nonces[utils.getAddress(safe.address)].pendingNonce,
+						nonces[utils.getAddress(safe.address)].pendingNonce
 					);
+					if (
+						resolvedProposalNonce == nonces[utils.getAddress(safe.address)].auto &&
+						proposal.nonce.includes('a')
+					) {
+						nonces[utils.getAddress(safe.address)].auto += 1;
+					}
 				} catch (e) {
 					throw new Error(`Invalid nonce expression ${proposal.nonce} for proposal ${proposal.title}`);
 				}
@@ -65,23 +89,16 @@ export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 	for (const proposalIndex of proposalIndexes) {
 		const proposal = scdk.state.proposals[proposalIndex].entity;
 		const safe = scdk.state.getSafeByAddress(proposal.safe) as PopulatedSafe;
-		let highestAvailableNonce = nonces[utils.getAddress(safe.address)];
-		for (const { nonce } of proposals[utils.getAddress(safe.address)]) {
-			if (nonce + 1 > highestAvailableNonce) {
-				highestAvailableNonce = nonce + 1;
-			}
-		}
 		if (proposal.nonce === undefined) {
 			proposals[utils.getAddress(safe.address)].push({
 				idx: proposalIndex,
 				proposal,
-				nonce: highestAvailableNonce
+				nonce: nonces[utils.getAddress(safe.address)].auto
 			});
-			nonces[utils.getAddress(safe.address)] = highestAvailableNonce + 1;
+			nonces[utils.getAddress(safe.address)].auto += 1;
 		}
 	}
 
-	const nonceCache: { [key: string]: number } = {};
 	for (const safe of Object.keys(proposals)) {
 		proposals[safe] = proposals[safe].sort((a, b) => a.nonce - b.nonce);
 		for (const proposal of proposals[safe]) {
@@ -95,7 +112,7 @@ export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 				prefix,
 				fileName,
 				proposal.nonce,
-				nonceCache
+				nonces
 			);
 			for (const [proposal, manifest, prefixToUse, hasProposed] of proposals) {
 				if (manifest !== null) {
@@ -261,9 +278,9 @@ async function syncProposal(
 	prefix: string,
 	proposal: string,
 	nonce: number,
-	nonceCache: { [key: string]: number }
+	nonceCache: { [key: string]: NonceData }
 ): Promise<[Proposal, Manifest | null, string, boolean][]> {
-	console.log(`syncing proposal ${resolve(context, proposal)}`, nonce);
+	console.log(`syncing proposal ${resolve(context, proposal)} with nonce=${nonce}`);
 	if (proposalConfig.safeTxHash) {
 		return [[proposalConfig, null, prefix, false]];
 	}
@@ -283,10 +300,10 @@ async function syncProposal(
 				]),
 				operation: 0,
 				nonce
-			},
-			options: {
-				nonce
 			}
+			// options: {
+			// 	nonce
+			// }
 		});
 		let estimationRes;
 
@@ -365,11 +382,16 @@ ${proposalConfig.description}
 							await scdk.state.writeProposal(proposalIndex, childProposalConfig);
 						}
 						if (nonceCache[utils.getAddress(ownerSafe.address)] === undefined) {
-							const highestNonce = scdk.state.getHighestProposalNonce(ownerSafe);
-							nonceCache[utils.getAddress(ownerSafe.address)] = highestNonce ? highestNonce + 1 : 0;
+							const pendingNonce = scdk.state.getHighestProposalNonce(safe);
+							const nonce = scdk.state.getHighestExecutedProposalNonce(safe);
+							nonceCache[utils.getAddress(safe.address)] = {
+								nonce: nonce != null ? nonce + 1 : 0,
+								pendingNonce: pendingNonce != null ? pendingNonce + 1 : 0,
+								auto: nonce != null ? nonce + 1 : 0
+							};
 						}
-						const nonceToUse = nonceCache[utils.getAddress(ownerSafe.address)];
-						nonceCache[utils.getAddress(ownerSafe.address)] = nonceToUse + 1;
+						const nonceToUse = nonceCache[utils.getAddress(ownerSafe.address)].auto;
+						nonceCache[utils.getAddress(ownerSafe.address)].auto += 1;
 						childResults = [
 							...childResults,
 							...(await syncProposal(
@@ -548,8 +570,7 @@ ${proposalConfig.description}
 						to: utils.getAddress(tx.transaction.to),
 						value: BigInt(tx.transaction.value).toString(),
 						data: tx.transaction.data,
-						operation: 0,
-						nonce
+						operation: 0
 					})),
 					options: {
 						nonce
@@ -563,10 +584,10 @@ ${proposalConfig.description}
 						data: txs[0].transaction.data,
 						operation: 0,
 						nonce
-					},
-					options: {
-						nonce
 					}
+					// options: {
+					// 	nonce
+					// }
 				});
 			}
 
@@ -646,11 +667,16 @@ ${proposalConfig.description}
 								await scdk.state.writeProposal(proposalIndex, childProposalConfig);
 							}
 							if (nonceCache[utils.getAddress(ownerSafe.address)] === undefined) {
-								const highestNonce = scdk.state.getHighestProposalNonce(ownerSafe);
-								nonceCache[utils.getAddress(ownerSafe.address)] = highestNonce ? highestNonce + 1 : 0;
+								const pendingNonce = scdk.state.getHighestProposalNonce(safe);
+								const nonce = scdk.state.getHighestExecutedProposalNonce(safe);
+								nonceCache[utils.getAddress(safe.address)] = {
+									nonce: nonce != null ? nonce + 1 : 0,
+									pendingNonce: pendingNonce != null ? pendingNonce + 1 : 0,
+									auto: nonce != null ? nonce + 1 : 0
+								};
 							}
-							const nonceToUse = nonceCache[utils.getAddress(ownerSafe.address)];
-							nonceCache[utils.getAddress(ownerSafe.address)] = nonceToUse + 1;
+							const nonceToUse = nonceCache[utils.getAddress(ownerSafe.address)].auto;
+							nonceCache[utils.getAddress(ownerSafe.address)].auto += 1;
 							childResults = [
 								...childResults,
 								...(await syncProposal(

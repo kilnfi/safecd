@@ -246,9 +246,30 @@ export class State {
 
 	getHighestProposalNonce(safe: PopulatedSafe): number | null {
 		const transactionIndexes = this.transactionBySafe[utils.getAddress(safe.address)];
+		if (transactionIndexes.length == 0) {
+			return null;
+		}
 		let maxNonce = 0;
 		for (const transactionIndex of transactionIndexes) {
 			const transaction = this.transactions[transactionIndex].entity;
+			if (transaction.nonce !== undefined && transaction.nonce > maxNonce) {
+				maxNonce = transaction.nonce;
+			}
+		}
+		return maxNonce;
+	}
+
+	getHighestExecutedProposalNonce(safe: PopulatedSafe): number | null {
+		const transactionIndexes = this.transactionBySafe[utils.getAddress(safe.address)];
+		if (transactionIndexes.length == 0) {
+			return null;
+		}
+		let maxNonce = 0;
+		for (const transactionIndex of transactionIndexes) {
+			const transaction = this.transactions[transactionIndex].entity;
+			if (!transaction.executionDate) {
+				continue;
+			}
 			if (transaction.nonce !== undefined && transaction.nonce > maxNonce) {
 				maxNonce = transaction.nonce;
 			}
