@@ -21,8 +21,12 @@ export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 	let hasProposedOne = false;
 	const proposalIndexes = [];
 	for (let proposalIdx = 0; proposalIdx < scdk.state.proposals.length; ++proposalIdx) {
-		const proposal = scdk.state.proposals[proposalIdx].entity;
-		if (proposal.childOf === undefined) {
+		const proposal = scdk.state.proposals[proposalIdx];
+		if (proposal.entity.safeTxHash !== undefined) {
+			console.log(`skipping proposal ${proposal.path}`);
+			continue;
+		}
+		if (proposal.entity.childOf === undefined) {
 			proposalIndexes.push(proposalIdx);
 		}
 	}
@@ -281,9 +285,6 @@ async function syncProposal(
 	nonceCache: { [key: string]: NonceData }
 ): Promise<[Proposal, Manifest | null, string, boolean][]> {
 	console.log(`syncing proposal ${resolve(context, proposal)} with nonce=${nonce}`);
-	if (proposalConfig.safeTxHash) {
-		return [[proposalConfig, null, prefix, false]];
-	}
 	if (proposalConfig.childOf) {
 		const safeAddress = proposalConfig.safe;
 		const safe = scdk.state.getSafeByAddress(safeAddress);
