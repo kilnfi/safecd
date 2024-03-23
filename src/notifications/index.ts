@@ -113,7 +113,7 @@ export async function syncProposals(scdk: SafeCDKit): Promise<void> {
 								updatedSlackNotifications.push(msg);
 							}
 						} catch (e) {
-							console.error('An error occured while trying to post slack notification');
+							console.error('An error occurred while trying to post slack notification');
 							console.error(e);
 						}
 					} else {
@@ -347,7 +347,7 @@ const formatProposalSlackMessage = (
 						text: {
 							type: 'mrkdwn',
 							text: `<!here> *${proposal.title}*
-						
+
 ${proposal.description || ''}
 `
 						}

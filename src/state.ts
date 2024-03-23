@@ -341,6 +341,7 @@ export class State {
 					if (safe.owners.find(o => getAddress(o) === owner)) {
 						if (
 							transaction.confirmations.length < safe.threshold &&
+              !transaction.isExecuted &&
 							transaction.confirmations.find(c => getAddress(c.owner) === getAddress(owner)) === undefined
 						) {
 							res.push(proposal);
