@@ -568,9 +568,7 @@ ${proposalConfig.description}
 				throw new Error(`Unsupported transactionType ${tx.transactionType} in proposal ${proposal}`);
 			}
 		}
-		console.log('OLALA');
 		if (txs.length > 0) {
-			console.log(txs);
 			const safeKit = await getSafeKit(scdk.provider, sender);
 			let safeTx;
 			if (txs.length > 1) {
