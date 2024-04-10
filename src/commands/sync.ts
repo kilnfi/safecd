@@ -1,5 +1,5 @@
 import { Command, Option } from 'commander';
-import { ethers, utils } from 'ethers';
+import { ethers, getAddress } from 'ethers';
 import { existsSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { relative, resolve } from 'path';
 import { promisify } from 'util';
@@ -56,7 +56,7 @@ export default function loadCommand(command: Command): void {
 			console.log();
 			const shouldUpload = options.upload;
 			const shouldWrite = !options.dryRun;
-			const provider = new ethers.providers.JsonRpcProvider(options.rpc);
+			const provider = new ethers.JsonRpcProvider(options.rpc);
 			const signers: { [key: string]: ethers.Signer } = {};
 			let loaded = false;
 			let pkIdx = 0;
@@ -64,7 +64,7 @@ export default function loadCommand(command: Command): void {
 				try {
 					loaded = true;
 					const signer = new ethers.Wallet(pk, provider);
-					signers[utils.getAddress(signer.address)] = signer;
+					signers[getAddress(signer.address)] = signer;
 					console.log(`  loaded signer for ${await signer.address}`);
 					pkIdx += 1;
 				} catch (e) {
@@ -94,7 +94,7 @@ export default function loadCommand(command: Command): void {
 				shouldUpload,
 				shouldWrite,
 				network: state.config.network,
-				network_id: chainId,
+				network_id: Number(chainId),
 				state
 			};
 
@@ -143,7 +143,7 @@ export default function loadCommand(command: Command): void {
 					writeFileSync('COMMIT_MSG', COMMIT_MSG, { encoding: 'utf8' });
 					if (process.env.CI === 'true') {
 						await exec(`echo "hasChanges=true" >> $GITHUB_OUTPUT`);
-						console.log('writting "hasChanged=true" ci output variable');
+						console.log('writing "hasChanged=true" ci output variable');
 					}
 				} else if (existsSync('COMMIT_MSG')) {
 					unlinkSync('COMMIT_MSG');
@@ -166,14 +166,14 @@ export default function loadCommand(command: Command): void {
 						}
 						writeFileSync('PR_COMMENT', content, { encoding: 'utf8' });
 						await exec(`echo "hasPrComment=true" >> $GITHUB_OUTPUT`);
-						console.log('writting "hasPrComment=true" ci output variable');
+						console.log('writing "hasPrComment=true" ci output variable');
 					}
 				}
 			}
 
 			if (error > 0) {
 				await exec(`echo "hasFailedProposals=true" >> $GITHUB_OUTPUT`);
-				console.log('writting "hasFailedProposals=true" ci output variable');
+				console.log('writing "hasFailedProposals=true" ci output variable');
 			}
 		});
 }
@@ -257,7 +257,7 @@ ${YAML.stringify(manifest.safe_estimation, { lineWidth: 0 })}
 `;
 	} else {
 		return `
-	
+
 # ${title} ❌
 
 ### \`${path}\`

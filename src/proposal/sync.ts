@@ -1,5 +1,4 @@
-import { utils } from 'ethers';
-import { Interface, ParamType } from 'ethers/lib/utils';
+import { getAddress, Interface, ParamType } from 'ethers';
 import { readFileSync, writeFileSync } from 'fs';
 import { basename, dirname, resolve } from 'path';
 import { promisify } from 'util';
@@ -40,17 +39,17 @@ export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 		if (safe === null) {
 			throw new Error(`Safe ${proposal.safe} not found`);
 		}
-		if (nonces[utils.getAddress(safe.address)] === undefined) {
+		if (nonces[getAddress(safe.address)] === undefined) {
 			const pendingNonce = scdk.state.getHighestProposalNonce(safe);
 			const nonce = scdk.state.getHighestExecutedProposalNonce(safe);
-			nonces[utils.getAddress(safe.address)] = {
+			nonces[getAddress(safe.address)] = {
 				nonce: nonce != null ? nonce + 1 : 0,
 				pendingNonce: pendingNonce != null ? pendingNonce + 1 : 0,
 				auto: nonce != null ? nonce + 1 : 0
 			};
 		}
-		if (proposals[utils.getAddress(safe.address)] === undefined) {
-			proposals[utils.getAddress(safe.address)] = [];
+		if (proposals[getAddress(safe.address)] === undefined) {
+			proposals[getAddress(safe.address)] = [];
 		}
 		let resolvedProposalNonce;
 		if (proposal.nonce !== undefined) {
@@ -65,24 +64,24 @@ export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 					resolvedProposalNonce = safeEval(
 						`function getNonce(a,auto,n,nonce,pn,pendingNonce) {return ${proposal.nonce};}`
 					)(
-						nonces[utils.getAddress(safe.address)].auto,
-						nonces[utils.getAddress(safe.address)].auto,
-						nonces[utils.getAddress(safe.address)].nonce,
-						nonces[utils.getAddress(safe.address)].nonce,
-						nonces[utils.getAddress(safe.address)].pendingNonce,
-						nonces[utils.getAddress(safe.address)].pendingNonce
+						nonces[getAddress(safe.address)].auto,
+						nonces[getAddress(safe.address)].auto,
+						nonces[getAddress(safe.address)].nonce,
+						nonces[getAddress(safe.address)].nonce,
+						nonces[getAddress(safe.address)].pendingNonce,
+						nonces[getAddress(safe.address)].pendingNonce
 					);
 					if (
-						resolvedProposalNonce == nonces[utils.getAddress(safe.address)].auto &&
+						resolvedProposalNonce == nonces[getAddress(safe.address)].auto &&
 						proposal.nonce.includes('a')
 					) {
-						nonces[utils.getAddress(safe.address)].auto += 1;
+						nonces[getAddress(safe.address)].auto += 1;
 					}
 				} catch (e) {
 					throw new Error(`Invalid nonce expression ${proposal.nonce} for proposal ${proposal.title}`);
 				}
 			}
-			proposals[utils.getAddress(safe.address)].push({
+			proposals[getAddress(safe.address)].push({
 				idx: proposalIndex,
 				proposal,
 				nonce: resolvedProposalNonce
@@ -94,12 +93,12 @@ export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 		const proposal = scdk.state.proposals[proposalIndex].entity;
 		const safe = scdk.state.getSafeByAddress(proposal.safe) as PopulatedSafe;
 		if (proposal.nonce === undefined) {
-			proposals[utils.getAddress(safe.address)].push({
+			proposals[getAddress(safe.address)].push({
 				idx: proposalIndex,
 				proposal,
-				nonce: nonces[utils.getAddress(safe.address)].auto
+				nonce: nonces[getAddress(safe.address)].auto
 			});
-			nonces[utils.getAddress(safe.address)].auto += 1;
+			nonces[getAddress(safe.address)].auto += 1;
 		}
 	}
 
@@ -121,7 +120,7 @@ export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 			for (const [proposal, manifest, prefixToUse, hasProposed] of proposals) {
 				if (manifest !== null) {
 					const manifestYaml = yamlToString(manifest);
-					console.log(`writting manifest ${resolve(path, `${prefixToUse}.proposal.manifest.yaml`)}`);
+					console.log(`writing manifest ${resolve(path, `${prefixToUse}.proposal.manifest.yaml`)}`);
 					writeFileSync(resolve(path, `${prefixToUse}.proposal.manifest.yaml`), manifestYaml);
 					const proposalPath = resolve(path, `${prefixToUse}.proposal.yaml`);
 					const proposalIndex = await scdk.state.proposalExists(proposalPath);
@@ -144,7 +143,7 @@ export async function syncProposals(scdk: SafeCDKit): Promise<boolean> {
 
 function delegateExists(safe: PopulatedSafe, address: string): boolean {
 	for (const delegate of safe.delegates) {
-		if (utils.getAddress(delegate.delegate) === utils.getAddress(address)) {
+		if (getAddress(delegate.delegate) === getAddress(address)) {
 			return true;
 		}
 	}
@@ -191,11 +190,11 @@ function verifyFunctionNamedParameters(func: string, paramTypes: ParamType[]): v
 		if (param.name === '' || param.name === null) {
 			throw new Error(`Invalid proposal function signature "${func}": all parameters must be named`);
 		}
-		if (param.baseType === 'array' && param.arrayChildren.baseType === 'tuple') {
-			verifyFunctionNamedParameters(func, param.arrayChildren.components);
+		if (param.baseType === 'array' && param.arrayChildren && param.arrayChildren.baseType === 'tuple') {
+			verifyFunctionNamedParameters(func, param.arrayChildren.components as ParamType[]);
 		}
 		if (param.baseType === 'tuple') {
-			verifyFunctionNamedParameters(func, param.components);
+			verifyFunctionNamedParameters(func, param.components as ParamType[]);
 		}
 	}
 }
@@ -217,7 +216,10 @@ function verifyArguments(param: ParamType, args: any, position: string): void {
 				`Invalid proposal arguments: "${position}" argument must be an array of length ${param.arrayLength}`
 			);
 		}
-		if (param.arrayChildren.baseType === 'array' || param.arrayChildren.baseType === 'tuple') {
+		if (
+			param.arrayChildren &&
+			(param.arrayChildren.baseType === 'array' || param.arrayChildren.baseType === 'tuple')
+		) {
 			let idx = 0;
 			for (const arg of args) {
 				verifyArguments(param.arrayChildren, arg, `${position}[${idx}]`);
@@ -226,11 +228,11 @@ function verifyArguments(param: ParamType, args: any, position: string): void {
 		} else {
 			let idx = 0;
 			for (const arg of args) {
-				verifyArguments(param.arrayChildren, arg, `${position}[${idx}]`);
+				verifyArguments(param.arrayChildren as ParamType, arg, `${position}[${idx}]`);
 				++idx;
 			}
 		}
-	} else if (param.baseType === 'tuple') {
+	} else if (param.baseType === 'tuple' && param.components) {
 		for (const subParam of param.components) {
 			verifyArguments(subParam, args[subParam.name], `${position}.${subParam.name}`);
 		}
@@ -245,13 +247,13 @@ function verifyArguments(param: ParamType, args: any, position: string): void {
 
 function encodeArguments(param: ParamType, args: any, labels: { [key: string]: string }): string {
 	let res = '';
-	if (param.baseType === 'array') {
+	if (param.baseType === 'array' && param.arrayChildren) {
 		const subElements = [];
 		for (const arg of args) {
 			subElements.push(encodeArguments(param.arrayChildren, arg, labels));
 		}
 		res += `[${subElements.join(',')}]`;
-	} else if (param.baseType === 'tuple') {
+	} else if (param.baseType === 'tuple' && param.components) {
 		const subElements = [];
 		for (const subParam of param.components) {
 			subElements.push(encodeArguments(subParam, args[subParam.name], labels));
@@ -293,13 +295,17 @@ async function syncProposal(
 		}
 		const safeKit = await getSafeKit(scdk.provider, safe.address);
 		const safeTx = await safeKit.createTransaction({
-			safeTransactionData: {
-				to: proposalConfig.childOf.safe,
-				value: '0',
-				data: new Interface(['function approveHash(bytes32 hash)']).encodeFunctionData('approveHash', [
-					proposalConfig.childOf.hash
-				]),
-				operation: 0,
+			transactions: [
+				{
+					to: proposalConfig.childOf.safe,
+					value: '0',
+					data: new Interface(['function approveHash(bytes32 hash)']).encodeFunctionData('approveHash', [
+						proposalConfig.childOf.hash
+					]),
+					operation: 0
+				}
+			],
+			options: {
 				nonce
 			}
 			// options: {
@@ -343,7 +349,7 @@ async function syncProposal(
 					if (ownerSafe !== null) {
 						let found = false;
 						for (const delegate of ownerSafe.delegates) {
-							if (utils.getAddress(delegate.delegate) === utils.getAddress(proposalConfig.delegate)) {
+							if (getAddress(delegate.delegate) === getAddress(proposalConfig.delegate)) {
 								found = true;
 								break;
 							}
@@ -361,7 +367,7 @@ async function syncProposal(
 							description: `Auto-generated approval of \`${hash}\` on safe \`${safe.address}\`
 
 \`\`\`solidity
-Safe(${utils.getAddress(safe.address)}).approveHash(${hash})
+Safe(${getAddress(safe.address)}).approveHash(${hash})
 \`\`\`
 
 Parent proposal: ${proposalConfig.title}
@@ -382,17 +388,17 @@ ${proposalConfig.description}
 						} else {
 							await scdk.state.writeProposal(proposalIndex, childProposalConfig);
 						}
-						if (nonceCache[utils.getAddress(ownerSafe.address)] === undefined) {
+						if (nonceCache[getAddress(ownerSafe.address)] === undefined) {
 							const pendingNonce = scdk.state.getHighestProposalNonce(ownerSafe);
 							const nonce = scdk.state.getHighestExecutedProposalNonce(ownerSafe);
-							nonceCache[utils.getAddress(ownerSafe.address)] = {
+							nonceCache[getAddress(ownerSafe.address)] = {
 								nonce: nonce != null ? nonce + 1 : 0,
 								pendingNonce: pendingNonce != null ? pendingNonce + 1 : 0,
 								auto: nonce != null ? nonce + 1 : 0
 							};
 						}
-						const nonceToUse = nonceCache[utils.getAddress(ownerSafe.address)].auto;
-						nonceCache[utils.getAddress(ownerSafe.address)].auto += 1;
+						const nonceToUse = nonceCache[getAddress(ownerSafe.address)].auto;
+						nonceCache[getAddress(ownerSafe.address)].auto += 1;
 						childResults = [
 							...childResults,
 							...(await syncProposal(
@@ -415,7 +421,7 @@ ${proposalConfig.description}
 			if (!delegateExists(safe, proposalConfig.delegate)) {
 				throw new Error(`Delegate ${proposalConfig.delegate} not found in safe ${safeAddress}`);
 			}
-			const delegateAddress = utils.getAddress(proposalConfig.delegate);
+			const delegateAddress = getAddress(proposalConfig.delegate);
 
 			const signer = scdk.signers[delegateAddress];
 			if (signer === undefined) {
@@ -426,16 +432,16 @@ ${proposalConfig.description}
 
 			const safeKitWithDelegateSigner = await getSafeKit(signer, safe.address);
 
-			const signature = await safeKitWithDelegateSigner.signTransactionHash(hash);
+			const signature = await safeKitWithDelegateSigner.signHash(hash);
 			const proposeTxPayload = {
-				safeAddress: utils.getAddress(safe.address),
+				safeAddress: getAddress(safe.address),
 				safeTransactionData: safeTx.data,
 				// origin: JSON.stringify({
 				// 	url: "https://fleek.ipfs.io/ipfs/QmYr3tfmH78oatVMDTgj1a7qWnWrRuJQRwavn2ArxMhU2E/",
 				// 	name: "SafeCD auto proposal"
 				// }),
 				safeTxHash: hash,
-				senderAddress: utils.getAddress(delegateAddress),
+				senderAddress: getAddress(delegateAddress),
 				senderSignature: signature.data
 			};
 			try {
@@ -494,8 +500,8 @@ ${proposalConfig.description}
 		const args = [];
 		const itf = new Interface([`function ${proposalConfig.function}`]);
 
-		if (proposalConfig.arguments) {
-			verifyFunctionNamedParameters(proposalConfig.function, itf.fragments[0].inputs);
+		if (proposalConfig.arguments && itf.fragments.length > 0) {
+			verifyFunctionNamedParameters(proposalConfig.function, itf.fragments[0].inputs as ParamType[]);
 			for (const inp of itf.fragments[0].inputs) {
 				verifyArguments(inp, proposalConfig.arguments[inp.name], inp.name);
 			}
@@ -559,18 +565,20 @@ ${proposalConfig.description}
 		const txs = foundryExecutionManifest.transactions as ForgeTransaction[];
 		for (const tx of txs) {
 			if (tx.transactionType !== 'CALL') {
-				throw new Error(`Unsupported transctionType ${tx.transactionType} in proposal ${proposal}`);
+				throw new Error(`Unsupported transactionType ${tx.transactionType} in proposal ${proposal}`);
 			}
 		}
+		console.log('OLALA');
 		if (txs.length > 0) {
+			console.log(txs);
 			const safeKit = await getSafeKit(scdk.provider, sender);
 			let safeTx;
 			if (txs.length > 1) {
 				safeTx = await safeKit.createTransaction({
-					safeTransactionData: txs.map(tx => ({
-						to: utils.getAddress(tx.transaction.to),
+					transactions: txs.map(tx => ({
+						to: getAddress(tx.transaction.to),
 						value: BigInt(tx.transaction.value).toString(),
-						data: tx.transaction.data,
+						data: tx.transaction.input,
 						operation: 0
 					})),
 					options: {
@@ -579,16 +587,17 @@ ${proposalConfig.description}
 				});
 			} else {
 				safeTx = await safeKit.createTransaction({
-					safeTransactionData: {
-						to: utils.getAddress(txs[0].transaction.to),
-						value: BigInt(txs[0].transaction.value).toString(),
-						data: txs[0].transaction.data,
-						operation: 0,
+					transactions: [
+						{
+							to: getAddress(txs[0].transaction.to),
+							value: BigInt(txs[0].transaction.value).toString(),
+							data: txs[0].transaction.input,
+							operation: 0
+						}
+					],
+					options: {
 						nonce
 					}
-					// options: {
-					// 	nonce
-					// }
 				});
 			}
 
@@ -628,7 +637,7 @@ ${proposalConfig.description}
 						if (ownerSafe !== null) {
 							let found = false;
 							for (const delegate of ownerSafe.delegates) {
-								if (utils.getAddress(delegate.delegate) === utils.getAddress(proposalConfig.delegate)) {
+								if (getAddress(delegate.delegate) === getAddress(proposalConfig.delegate)) {
 									found = true;
 									break;
 								}
@@ -646,7 +655,7 @@ ${proposalConfig.description}
 								description: `Auto-generated approval of \`${hash}\` on safe \`${safe.address}\`
 
 \`\`\`solidity
-Safe(${utils.getAddress(safe.address)}).approveHash(${hash})
+Safe(${getAddress(safe.address)}).approveHash(${hash})
 \`\`\`
 
 Parent proposal: ${proposalConfig.title}
@@ -667,17 +676,17 @@ ${proposalConfig.description}
 							} else {
 								await scdk.state.writeProposal(proposalIndex, childProposalConfig);
 							}
-							if (nonceCache[utils.getAddress(ownerSafe.address)] === undefined) {
+							if (nonceCache[getAddress(ownerSafe.address)] === undefined) {
 								const pendingNonce = scdk.state.getHighestProposalNonce(ownerSafe);
 								const nonce = scdk.state.getHighestExecutedProposalNonce(ownerSafe);
-								nonceCache[utils.getAddress(ownerSafe.address)] = {
+								nonceCache[getAddress(ownerSafe.address)] = {
 									nonce: nonce != null ? nonce + 1 : 0,
 									pendingNonce: pendingNonce != null ? pendingNonce + 1 : 0,
 									auto: nonce != null ? nonce + 1 : 0
 								};
 							}
-							const nonceToUse = nonceCache[utils.getAddress(ownerSafe.address)].auto;
-							nonceCache[utils.getAddress(ownerSafe.address)].auto += 1;
+							const nonceToUse = nonceCache[getAddress(ownerSafe.address)].auto;
+							nonceCache[getAddress(ownerSafe.address)].auto += 1;
 							childResults = [
 								...childResults,
 								...(await syncProposal(
@@ -700,7 +709,7 @@ ${proposalConfig.description}
 				if (!delegateExists(safe, proposalConfig.delegate)) {
 					throw new Error(`Delegate ${proposalConfig.delegate} not found in safe ${safeAddress}`);
 				}
-				const delegateAddress = utils.getAddress(proposalConfig.delegate);
+				const delegateAddress = getAddress(proposalConfig.delegate);
 
 				const signer = scdk.signers[delegateAddress];
 				if (signer === undefined) {
@@ -711,16 +720,16 @@ ${proposalConfig.description}
 
 				const safeKitWithDelegateSigner = await getSafeKit(signer, safe.address);
 
-				const signature = await safeKitWithDelegateSigner.signTransactionHash(hash);
+				const signature = await safeKitWithDelegateSigner.signHash(hash);
 				const proposeTxPayload = {
-					safeAddress: utils.getAddress(safe.address),
+					safeAddress: getAddress(safe.address),
 					safeTransactionData: safeTx.data,
 					// origin: JSON.stringify({
 					// 	url: "https://fleek.ipfs.io/ipfs/QmYr3tfmH78oatVMDTgj1a7qWnWrRuJQRwavn2ArxMhU2E/",
 					// 	name: "SafeCD auto proposal"
 					// }),
 					safeTxHash: hash,
-					senderAddress: utils.getAddress(delegateAddress),
+					senderAddress: getAddress(delegateAddress),
 					senderSignature: signature.data
 				};
 				try {

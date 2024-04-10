@@ -4,7 +4,7 @@ import Safe, { EthersAdapter } from '@safe-global/protocol-kit';
 import { ethers } from 'ethers';
 
 export async function getSafeApiKit(
-	provider: ethers.providers.Provider | ethers.Signer,
+	provider: ethers.Provider | ethers.AbstractSigner,
 	txServiceUrl: string
 ): Promise<SafeApiKit> {
 	const ethAdapter = new EthersAdapter({
@@ -13,15 +13,14 @@ export async function getSafeApiKit(
 	});
 
 	const safeService = new SafeApiKit({
-		txServiceUrl,
-		ethAdapter
+		chainId: await ethAdapter.getChainId()
 	});
 
 	return safeService;
 }
 
 export async function getSafeKit(
-	provider: ethers.providers.Provider | ethers.Signer,
+	provider: ethers.Provider | ethers.AbstractSigner,
 	safeAddress: string
 ): Promise<Safe> {
 	const ethAdapter = new EthersAdapter({

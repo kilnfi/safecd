@@ -1,6 +1,6 @@
 import { SafeMultisigTransactionListResponse } from '@safe-global/api-kit';
 import axios from 'axios';
-import { utils } from 'ethers';
+import { getAddress } from 'ethers';
 import { resolve } from 'path';
 import { Address, EOA, PopulatedSafe, Safe, SafeCDKit, Transaction } from '../types';
 
@@ -96,7 +96,7 @@ async function syncSafeTransactions(
 }
 
 async function syncSafe(scdk: SafeCDKit, safe: Safe, path: string): Promise<Address[]> {
-	const requestedSafe = await scdk.sak.getSafeInfo(safe.address);
+	const requestedSafe = await scdk.sak.getSafeInfo(getAddress(safe.address));
 	let requestedSafeDelegates = await scdk.sak.getSafeDelegates({
 		safeAddress: safe.address,
 		limit: '100',
@@ -121,10 +121,10 @@ async function syncSafe(scdk: SafeCDKit, safe: Safe, path: string): Promise<Addr
 	console.log(`synced ${resolve(path)}`);
 	const populatedSafe = {
 		...safe,
-		owners: requestedSafe.owners.map(utils.getAddress),
+		owners: requestedSafe.owners.map(getAddress),
 		delegates: delegates.map(d => ({
-			delegate: utils.getAddress(d.delegate),
-			delegator: utils.getAddress(d.delegator),
+			delegate: getAddress(d.delegate),
+			delegator: getAddress(d.delegator),
 			label: d.label
 		})),
 		nonce: requestedSafe.nonce,
@@ -143,7 +143,7 @@ async function syncSafe(scdk: SafeCDKit, safe: Safe, path: string): Promise<Addr
 			tx.transactionHash === null ? '.pending.' : '.'
 		}yaml`;
 		if (scdk.state.transactionByHash[tx.safeTxHash.toLowerCase()] === undefined) {
-			await scdk.state.createTransaction(path, tx as Transaction);
+			await scdk.state.createTransaction(path, tx);
 		} else {
 			const registeredTx = scdk.state.transactions[scdk.state.transactionByHash[tx.safeTxHash.toLowerCase()]];
 			if (resolve(registeredTx.path) === resolve(path)) {

@@ -1,5 +1,4 @@
-import { utils } from 'ethers';
-import { getAddress } from 'ethers/lib/utils';
+import { getAddress } from 'ethers';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { dirname, join, relative, resolve } from 'path';
 import { promisify } from 'util';
@@ -95,10 +94,10 @@ export class State {
 			this.safes[index].del = true;
 		} else {
 			const safeName = currentSafe.name;
-			const safeAddress = utils.getAddress(currentSafe.address);
+			const safeAddress = getAddress(currentSafe.address);
 			delete this.safeByAddress[safeAddress];
 			delete this.safeByName[safeName];
-			safe.address = utils.getAddress(safe.address);
+			safe.address = getAddress(safe.address);
 			this.safes[index].entity = safe;
 			this.safes[index].del = false;
 			this.safeByAddress[safe.address] = index;
@@ -114,7 +113,7 @@ export class State {
 		if (proposal === null) {
 			this.proposals[index].del = true;
 		} else {
-			const proposalSafe = utils.getAddress(currentProposal.safe);
+			const proposalSafe = getAddress(currentProposal.safe);
 			const proposalHash = currentProposal.safeTxHash?.toLowerCase();
 			if (proposalHash) {
 				delete this.proposalByHash[proposalHash];
@@ -140,7 +139,7 @@ export class State {
 		if (tx === null) {
 			this.transactions[index].del = true;
 		} else {
-			const transactionSafe = utils.getAddress(currentTx.safe);
+			const transactionSafe = getAddress(currentTx.safe);
 			const transactionHash = currentTx.safeTxHash.toLowerCase();
 			this.transactionBySafe[transactionSafe] = this.transactionBySafe[transactionSafe].filter(
 				(i: number) => i !== index
@@ -158,7 +157,7 @@ export class State {
 	}
 
 	async createSafe(path: string, safe: Safe | PopulatedSafe): Promise<void> {
-		const safeAddress = utils.getAddress(safe.address);
+		const safeAddress = getAddress(safe.address);
 		if (this.safeByAddress[safeAddress] !== undefined) {
 			throw new Error(`Safe with address ${safe.address} already exists`);
 		}
@@ -176,7 +175,7 @@ export class State {
 	}
 
 	async createEOA(path: string, eoa: EOA): Promise<void> {
-		const eoaAddress = utils.getAddress(eoa.address);
+		const eoaAddress = getAddress(eoa.address);
 		if (this.eoaByAddress[eoaAddress] !== undefined) {
 			throw new Error(`EOA with address ${eoa.address} already exists`);
 		}
@@ -194,7 +193,7 @@ export class State {
 	}
 
 	async createTransaction(path: string, tx: Transaction): Promise<void> {
-		const txSafe = utils.getAddress(tx.safe);
+		const txSafe = getAddress(tx.safe);
 		const txHash = tx.safeTxHash.toLowerCase();
 		if (this.transactionByHash[txHash] !== undefined) {
 			throw new Error(`Transaction with hash ${tx.safeTxHash} already exists`);
@@ -213,7 +212,7 @@ export class State {
 	}
 
 	async createProposal(path: string, proposal: Proposal): Promise<void> {
-		const proposalSafe = utils.getAddress(proposal.safe);
+		const proposalSafe = getAddress(proposal.safe);
 		if (proposal.safeTxHash) {
 			const proposalHash = proposal.safeTxHash.toLowerCase();
 			if (this.proposalByHash[proposalHash] !== undefined) {
@@ -245,7 +244,7 @@ export class State {
 	}
 
 	getHighestProposalNonce(safe: PopulatedSafe): number | null {
-		const transactionIndexes = this.transactionBySafe[utils.getAddress(safe.address)];
+		const transactionIndexes = this.transactionBySafe[getAddress(safe.address)];
 		if (transactionIndexes.length == 0) {
 			return null;
 		}
@@ -260,7 +259,7 @@ export class State {
 	}
 
 	getHighestExecutedProposalNonce(safe: PopulatedSafe): number | null {
-		const transactionIndexes = this.transactionBySafe[utils.getAddress(safe.address)];
+		const transactionIndexes = this.transactionBySafe[getAddress(safe.address)];
 		if (transactionIndexes.length == 0) {
 			return null;
 		}
@@ -286,7 +285,7 @@ export class State {
 	}
 
 	getSafeByAddress(address: string): PopulatedSafe | null {
-		address = utils.getAddress(address);
+		address = getAddress(address);
 		const safeIndex = this.safeByAddress[address];
 		if (safeIndex === undefined) {
 			return null;
@@ -295,7 +294,7 @@ export class State {
 	}
 
 	getEOAByAddress(address: string): EOA | null {
-		address = utils.getAddress(address);
+		address = getAddress(address);
 		const eoaIndex = this.eoaByAddress[address];
 		if (eoaIndex === undefined) {
 			return null;
@@ -340,8 +339,9 @@ export class State {
 				if (transaction && safe) {
 					if (safe.owners.find(o => getAddress(o) === owner)) {
 						if (
+							transaction.confirmations &&
 							transaction.confirmations.length < safe.threshold &&
-              !transaction.isExecuted &&
+							!transaction.isExecuted &&
 							transaction.confirmations.find(c => getAddress(c.owner) === getAddress(owner)) === undefined
 						) {
 							res.push(proposal);
@@ -485,7 +485,7 @@ export class State {
 		const safes = readdirSync('./safes');
 		for (const safeConfig of safes) {
 			const safe: Safe = loadEntity<Safe>(SafeSchema, `./safes/${safeConfig}`);
-			safe.address = utils.getAddress(safe.address);
+			safe.address = getAddress(safe.address);
 			const safeIndex =
 				this.safes.push({
 					path: relativify(`./safes/${safeConfig}`),
@@ -508,7 +508,7 @@ export class State {
 			const eoas = readdirSync('./eoas');
 			for (const eoaConfig of eoas) {
 				const eoa: EOA = loadEntity<EOA>(EOASchema, `./eoas/${eoaConfig}`);
-				eoa.address = utils.getAddress(eoa.address);
+				eoa.address = getAddress(eoa.address);
 				const eoaIndex =
 					this.eoas.push({
 						path: relativify(`./eoas/${eoaConfig}`),
@@ -535,7 +535,7 @@ export class State {
 				await this.loadTransactionsInDir(resolve(path, element));
 			} else if (stat.isFile() && element.endsWith('.yaml')) {
 				const transaction = loadEntity<Transaction>(TransactionSchema, resolve(path, element));
-				transaction.safe = utils.getAddress(transaction.safe);
+				transaction.safe = getAddress(transaction.safe);
 				const transactionIndex =
 					this.transactions.push({
 						path: relativify(join(path, element)),
@@ -559,7 +559,7 @@ export class State {
 			throw new Error(`Transaction index ${index} out of bounds`);
 		}
 		const currentTx = this.transactions[index].entity;
-		const transactionSafe = utils.getAddress(currentTx.safe);
+		const transactionSafe = getAddress(currentTx.safe);
 		const transactionHash = currentTx.safeTxHash.toLowerCase();
 		this.transactionBySafe[transactionSafe] = this.transactionBySafe[transactionSafe].filter(
 			(i: number) => i !== index
@@ -594,10 +594,10 @@ export class State {
 					}
 					this.proposalByHash[proposal.safeTxHash.toLowerCase()] = proposalIndex;
 				}
-				if (this.proposalsBySafe[utils.getAddress(proposal.safe)] === undefined) {
-					this.proposalsBySafe[utils.getAddress(proposal.safe)] = [];
+				if (this.proposalsBySafe[getAddress(proposal.safe)] === undefined) {
+					this.proposalsBySafe[getAddress(proposal.safe)] = [];
 				}
-				this.proposalsBySafe[utils.getAddress(proposal.safe)].push(proposalIndex);
+				this.proposalsBySafe[getAddress(proposal.safe)].push(proposalIndex);
 			}
 		}
 	}

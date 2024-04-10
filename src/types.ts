@@ -1,5 +1,5 @@
 import SafeApiKit, { ProposeTransactionProps } from '@safe-global/api-kit';
-import { ethers, utils } from 'ethers';
+import { ethers, getAddress, isAddress } from 'ethers';
 import { readFileSync } from 'fs';
 import YAML from 'yaml';
 import { z } from 'zod';
@@ -7,10 +7,10 @@ import { State } from './state';
 
 const ethAddressSchema = z
 	.string()
-	.refine(value => utils.isAddress(value), {
+	.refine(value => isAddress(value), {
 		message: 'Provided address is invalid. Please insure you have typed correctly.'
 	})
-	.transform(value => utils.getAddress(value));
+	.transform(value => getAddress(value));
 
 export const GlobalConfigSchema = z.object({
 	network: z.string(),
@@ -104,42 +104,43 @@ export const TransactionSchema = z.object({
 	safe: z.string(),
 	to: z.string(),
 	value: z.string(),
-	data: z.string().nullable(),
+	data: z.string().optional(),
 	operation: z.number(),
 	gasToken: z.string(),
 	safeTxGas: z.number(),
 	baseGas: z.number(),
 	gasPrice: z.string(),
-	refundReceiver: z.string(),
+	refundReceiver: z.string().optional(),
 	nonce: z.number(),
-	executionDate: z.string().nullable(),
+	executionDate: z.string().optional(),
 	submissionDate: z.string(),
 	modified: z.string(),
-	blockNumber: z.number().nullable(),
-	transactionHash: z.string().nullable(),
+	blockNumber: z.number().optional(),
+	transactionHash: z.string().optional(),
 	safeTxHash: z.string(),
-	executor: z.string().nullable(),
+	executor: z.string().optional(),
+	proposer: z.string(),
 	isExecuted: z.boolean(),
-	isSuccessful: z.boolean().nullable(),
-	ethGasPrice: z.string().nullable(),
-	maxFeePerGas: z.string().nullable(),
-	maxPriorityFeePerGas: z.string().nullable(),
-	gasUsed: z.number().nullable(),
-	fee: z.string().nullable(),
-	origin: z.string().nullable(),
+	isSuccessful: z.boolean().optional(),
+	ethGasPrice: z.string().optional(),
+	gasUsed: z.number().optional(),
+	fee: z.string().optional(),
+	origin: z.string().optional(),
 	dataDecoded: z.any(),
 	confirmationsRequired: z.number(),
-	confirmations: z.array(
-		z.object({
-			owner: z.string(),
-			submissionDate: z.string(),
-			transactionHash: z.string().nullable(),
-			signature: z.string(),
-			signatureType: z.string()
-		})
-	),
+	confirmations: z
+		.array(
+			z.object({
+				owner: z.string(),
+				submissionDate: z.string(),
+				transactionHash: z.string().optional(),
+				signature: z.string(),
+				signatureType: z.string().optional()
+			})
+		)
+		.optional(),
 	trusted: z.boolean(),
-	signatures: z.string().nullable()
+	signatures: z.string().optional()
 });
 
 export type GlobalConfig = z.infer<typeof GlobalConfigSchema>;
@@ -174,7 +175,7 @@ export interface WriteOperation {
 
 export interface SafeCDKit {
 	sak: SafeApiKit;
-	provider: ethers.providers.Provider;
+	provider: ethers.Provider;
 	signers: { [key: string]: ethers.Signer };
 	shouldUpload: boolean;
 	shouldWrite: boolean;
@@ -212,7 +213,7 @@ export interface ForgeTransaction {
 		to: string;
 		gas: string;
 		value: string;
-		data: string;
+		input: string;
 		nonce: string;
 		accessList: string[];
 	};

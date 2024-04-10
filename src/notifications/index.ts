@@ -1,6 +1,5 @@
 import { Block, KnownBlock, MessageAttachment, WebClient } from '@slack/web-api';
-import { utils } from 'ethers';
-import { keccak256 } from 'ethers/lib/utils';
+import { formatEther, getAddress, hashMessage, keccak256 } from 'ethers';
 import { State } from '../state';
 import { EOA, PopulatedSafe, Proposal, SafeCDKit, Transaction } from '../types';
 import { yamlToString } from '../utils/yamlToString';
@@ -45,7 +44,7 @@ export async function syncProposals(scdk: SafeCDKit): Promise<void> {
 				continue;
 			}
 			const { notifications, ...hashableProposal } = proposal;
-			const hash = utils.hashMessage(
+			const hash = hashMessage(
 				yamlToString(hashableProposal) +
 					yamlToString(transaction) +
 					yamlToString(rejection || {}) +
@@ -210,9 +209,7 @@ const getSigners = (
 		if (eoa === null) {
 			const safeOwner = scdk.state.getSafeByAddress(owner);
 			if (safeOwner === null) {
-				missingSigners.push(
-					`<${getAddressExplorerLink(scdk, utils.getAddress(owner))}|${utils.getAddress(owner)}>`
-				);
+				missingSigners.push(`<${getAddressExplorerLink(scdk, getAddress(owner))}|${getAddress(owner)}>`);
 			} else {
 				missingSigners.push(`<${getAddressExplorerLink(scdk, safeOwner.address)}|${safeOwner.name} (safe)>`);
 			}
@@ -221,34 +218,36 @@ const getSigners = (
 		}
 	}
 	let confirmationSigners: string[] = [];
-	for (const confirmation of transaction.confirmations) {
-		let eoa = scdk.state.getEOAByAddress(confirmation.owner);
-		if (eoa === null) {
-			const safeOwner = scdk.state.getSafeByAddress(confirmation.owner);
-			if (safeOwner === null) {
-				confirmationSigners.push(
-					`<${getAddressExplorerLink(scdk, utils.getAddress(confirmation.owner))}|${utils.getAddress(
-						confirmation.owner
-					)}>`
-				);
+	if (transaction.confirmations) {
+		for (const confirmation of transaction.confirmations) {
+			let eoa = scdk.state.getEOAByAddress(confirmation.owner);
+			if (eoa === null) {
+				const safeOwner = scdk.state.getSafeByAddress(confirmation.owner);
+				if (safeOwner === null) {
+					confirmationSigners.push(
+						`<${getAddressExplorerLink(scdk, getAddress(confirmation.owner))}|${getAddress(
+							confirmation.owner
+						)}>`
+					);
+				} else {
+					confirmationSigners.push(
+						`<${getAddressExplorerLink(scdk, safeOwner.address)}|${safeOwner.name} (safe)>`
+					);
+				}
 			} else {
-				confirmationSigners.push(
-					`<${getAddressExplorerLink(scdk, safeOwner.address)}|${safeOwner.name} (safe)>`
-				);
+				confirmationSigners.push(`<${getAddressExplorerLink(scdk, eoa.address)}|${eoa.name}>`);
 			}
-		} else {
-			confirmationSigners.push(`<${getAddressExplorerLink(scdk, eoa.address)}|${eoa.name}>`);
 		}
 	}
 	let rejectionSigners: string[] = [];
-	if (rejection !== null) {
+	if (rejection !== null && rejection.confirmations) {
 		for (const confirmation of rejection.confirmations) {
 			let eoa = scdk.state.getEOAByAddress(confirmation.owner);
 			if (eoa === null) {
 				const safeOwner = scdk.state.getSafeByAddress(confirmation.owner);
 				if (safeOwner === null) {
 					rejectionSigners.push(
-						`<${getAddressExplorerLink(scdk, utils.getAddress(confirmation.owner))}|${utils.getAddress(
+						`<${getAddressExplorerLink(scdk, getAddress(confirmation.owner))}|${getAddress(
 							confirmation.owner
 						)}>`
 					);
@@ -268,7 +267,7 @@ const getSigners = (
 	return [missingSigners, confirmationSigners, rejectionSigners];
 };
 
-function getAddress(scdk: SafeCDKit, address: string): string {
+function getSafeAddress(scdk: SafeCDKit, address: string): string {
 	const eoa = scdk.state.getEOAByAddress(address);
 	if (eoa !== null) {
 		return `<${getAddressExplorerLink(scdk, eoa.address)}|\`${eoa.name}\`>`;
@@ -281,13 +280,13 @@ function getAddress(scdk: SafeCDKit, address: string): string {
 }
 
 function getRejectionTransaction(scdk: SafeCDKit, transaction: Transaction): Transaction | null {
-	const otherSafeTransactions = scdk.state.transactionBySafe[utils.getAddress(transaction.safe)].map(
+	const otherSafeTransactions = scdk.state.transactionBySafe[getAddress(transaction.safe)].map(
 		txIdx => scdk.state.transactions[txIdx]
 	);
 	for (const otherSafeTransaction of otherSafeTransactions) {
 		if (
 			otherSafeTransaction.entity.nonce === transaction.nonce &&
-			utils.getAddress(otherSafeTransaction.entity.to) === utils.getAddress(transaction.safe) &&
+			getAddress(otherSafeTransaction.entity.to) === getAddress(transaction.safe) &&
 			otherSafeTransaction.entity.value === '0' &&
 			otherSafeTransaction.entity.data === null &&
 			otherSafeTransaction.entity.safeTxHash?.toLowerCase() !== transaction.safeTxHash?.toLowerCase()
@@ -311,7 +310,7 @@ const getStatusTextAndColor = (
 	if (transaction.isExecuted) {
 		return ['Proposal was executed onchain', '#0275d8'];
 	}
-	if (transaction.confirmations.length >= safe.threshold) {
+	if (transaction.confirmations && transaction.confirmations.length >= safe.threshold) {
 		return ['Proposal is ready to be executed', '#64a338'];
 	}
 	return ['Proposal is not ready to be executed', '#ffcc00'];
@@ -397,7 +396,10 @@ ${proposal.description || ''}
 								type: 'mrkdwn',
 								text:
 									'*Confirmations:*\n' +
-									getConfirmationIcons(transaction.confirmations.length, safe.threshold)
+									getConfirmationIcons(
+										transaction.confirmations ? transaction.confirmations.length : 0,
+										safe.threshold
+									)
 							},
 							{
 								type: 'mrkdwn',
@@ -418,7 +420,10 @@ ${proposal.description || ''}
 											type: 'mrkdwn',
 											text:
 												'*Rejections:*\n' +
-												getRejectionIcons(rejection.confirmations.length, safe.threshold)
+												getRejectionIcons(
+													rejection.confirmations ? rejection.confirmations.length : 0,
+													safe.threshold
+												)
 										},
 										{
 											type: 'mrkdwn',
@@ -440,11 +445,11 @@ ${proposal.description || ''}
 						fields: [
 							{
 								type: 'mrkdwn',
-								text: `*From*:\n${getAddress(scdk, transaction.safe)}`
+								text: `*From*:\n${getSafeAddress(scdk, transaction.safe)}`
 							},
 							{
 								type: 'mrkdwn',
-								text: `*To*:\n${getAddress(scdk, transaction.to)}`
+								text: `*To*:\n${getSafeAddress(scdk, transaction.to)}`
 							}
 						]
 					},
@@ -453,7 +458,7 @@ ${proposal.description || ''}
 						fields: [
 							{
 								type: 'mrkdwn',
-								text: '*Value:*\n' + utils.formatEther(transaction.value) + ' ETH'
+								text: '*Value:*\n' + formatEther(transaction.value) + ' ETH'
 							},
 							{
 								type: 'mrkdwn',

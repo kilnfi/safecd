@@ -1,4 +1,3 @@
-import { ChainId, FireblocksWeb3Provider } from '@fireblocks/fireblocks-web3-provider';
 import { EthereumProvider } from '@walletconnect/ethereum-provider';
 import { Command } from 'commander';
 import { ethers } from 'ethers';
@@ -27,7 +26,7 @@ export default function loadCommand(command: Command): void {
 			if (!options.ledger && !options.pk && !options.walletconnect && !options.fireblocksPrivateKeyPath) {
 				throw new Error(`Missing ledger or pk`);
 			}
-			const provider = new ethers.providers.JsonRpcProvider(options.rpc);
+			const provider = new ethers.JsonRpcProvider(options.rpc);
 			let signer;
 			if (options.walletconnect) {
 				const provider = await EthereumProvider.init({
@@ -46,20 +45,7 @@ export default function loadCommand(command: Command): void {
 					console.log(`uri: "${uri}"`);
 				});
 				await provider.connect();
-				signer = new ethers.providers.Web3Provider(provider).getSigner();
-			} else if (
-				options.fireblocksPrivateKeyPath &&
-				options.fireblocksApiKey &&
-				options.fireblocksVaultAccountIds
-			) {
-				signer = new ethers.providers.Web3Provider(
-					new FireblocksWeb3Provider({
-						privateKey: options.fireblocksPrivateKeyPath,
-						apiKey: options.fireblocksApiKey,
-						vaultAccountIds: options.fireblocksVaultAccountIds,
-						chainId: ChainId.MAINNET
-					})
-				).getSigner();
+				signer = provider.signer;
 			} else if (options.ledger) {
 				signer = new LedgerSigner(provider, 'hid', options.ledger);
 			} else {

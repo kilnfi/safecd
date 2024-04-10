@@ -1,4 +1,4 @@
-import { utils } from 'ethers';
+import { formatEther, getAddress } from 'ethers';
 import { existsSync, readFileSync } from 'fs';
 import YAML from 'yaml';
 import { EOA, PopulatedSafe, Proposal, SafeCDKit, Transaction } from '../types';
@@ -176,11 +176,11 @@ ${formatSafeTransactions(scdk, safe, txs)}
 }
 
 function getTxTitle(tx: Transaction): string {
-	if (utils.getAddress(tx.safe) === utils.getAddress(tx.to) && tx.data === null) {
+	if (getAddress(tx.safe) === getAddress(tx.to) && tx.data === null) {
 		if (tx.value === '0') {
 			return 'Transaction rejection';
 		}
-		return `Ether transfer of ${utils.formatEther(tx.value)} ETH`;
+		return `Ether transfer of ${formatEther(tx.value)} ETH`;
 	}
 	if (tx.dataDecoded?.method) {
 		return `\`\`\`solidity
@@ -211,10 +211,13 @@ function formatOwnerLeaderboard(scdk: SafeCDKit, safe: PopulatedSafe): string {
 			ownerScores[(tx.executor as string).toLowerCase()] =
 				(ownerScores[(tx.executor as string).toLowerCase()] || 0) + 1;
 		}
-		for (const confirmation of tx.confirmations) {
-			ownerSignatures[confirmation.owner.toLowerCase()] =
-				(ownerSignatures[confirmation.owner.toLowerCase()] || 0) + 1;
-			ownerScores[confirmation.owner.toLowerCase()] = (ownerScores[confirmation.owner.toLowerCase()] || 0) + 1;
+		if (tx.confirmations) {
+			for (const confirmation of tx.confirmations) {
+				ownerSignatures[confirmation.owner.toLowerCase()] =
+					(ownerSignatures[confirmation.owner.toLowerCase()] || 0) + 1;
+				ownerScores[confirmation.owner.toLowerCase()] =
+					(ownerScores[confirmation.owner.toLowerCase()] || 0) + 1;
+			}
 		}
 	}
 	const owners = Object.keys(ownerScores)
@@ -290,7 +293,11 @@ ${YAML.stringify(tx, { lineWidth: 0 })}
 ${proposal ? resolveChildProposals(scdk, proposal, 1) : ''}
 </td>
 </td>
-${tx.isExecuted ? '' : `<td>${getConfirmationIcons(tx.confirmations.length, safe.threshold)}</td>`}
+${
+	tx.isExecuted
+		? ''
+		: `<td>${getConfirmationIcons(tx.confirmations ? tx.confirmations.length : 0, safe.threshold)}</td>`
+}
 <td>${resolveConfirmations(scdk, tx)}</td>
 ${tx.isExecuted ? `<td>${resolveExecutor(scdk, tx)}</td>` : ''}
 ${tx.isExecuted ? `<td><a target="_blank" href="${getTxExplorerLink(scdk, tx)}">🔗</a></td>` : ''}
@@ -328,8 +335,10 @@ function resolveExecutor(scdk: SafeCDKit, tx: Transaction): string {
 
 function resolveConfirmations(scdk: SafeCDKit, tx: Transaction): string {
 	let content = [];
-	for (const confirmation of tx.confirmations) {
-		content.push(getNameAndType(scdk, confirmation.owner));
+	if (tx.confirmations) {
+		for (const confirmation of tx.confirmations) {
+			content.push(getNameAndType(scdk, confirmation.owner));
+		}
 	}
 	return content.join('<br/>');
 }
@@ -357,7 +366,7 @@ function getNameAndType(scdk: SafeCDKit, address: string): string {
 		namingMap = {};
 		for (let eoaIdx = 0; eoaIdx < scdk.state.eoas.length; ++eoaIdx) {
 			const loadedEOA: EOA = scdk.state.eoas[eoaIdx].entity as EOA;
-			namingMap[utils.getAddress(loadedEOA.address)] = `<code><a href="${getAddressExplorerLink(
+			namingMap[getAddress(loadedEOA.address)] = `<code><a href="${getAddressExplorerLink(
 				scdk,
 				loadedEOA.address
 			)}" target="_blank">eoa@${loadedEOA.name}</a></code>`;
@@ -365,22 +374,22 @@ function getNameAndType(scdk: SafeCDKit, address: string): string {
 
 		for (let safeIdx = 0; safeIdx < scdk.state.safes.length; ++safeIdx) {
 			const safe: PopulatedSafe = scdk.state.safes[safeIdx].entity as PopulatedSafe;
-			namingMap[utils.getAddress(safe.address)] = `<code><a href="${getAddressExplorerLink(
+			namingMap[getAddress(safe.address)] = `<code><a href="${getAddressExplorerLink(
 				scdk,
 				safe.address
 			)}" target="_blank">safe@${safe.name}</a></code>`;
 		}
 	}
 
-	if (namingMap[utils.getAddress(address)]) {
-		return namingMap[utils.getAddress(address)];
+	if (namingMap[getAddress(address)]) {
+		return namingMap[getAddress(address)];
 	}
 
 	return `<code><a href="${getAddressExplorerLink(scdk, address)}" target="_blank">${address}</a></code>`;
 }
 
 function getAllSafeTransactions(scdk: SafeCDKit, safe: PopulatedSafe): Transaction[] {
-	const txIds = scdk.state.transactionBySafe[utils.getAddress(safe.address)];
+	const txIds = scdk.state.transactionBySafe[getAddress(safe.address)];
 	if (!txIds) {
 		return [];
 	}
@@ -412,7 +421,7 @@ function getScore(color: string): number {
 const Color = require('color');
 
 function lightAndDark(address: string): [string, string] {
-	const index = parseInt(utils.getAddress(address).slice(2, 8), 16);
+	const index = parseInt(getAddress(address).slice(2, 8), 16);
 	const palette = colors[index % colors.length];
 	let lightest = Color(palette[index % palette.length]).lightness(10);
 	let darkest = Color(palette[index % palette.length]);
@@ -420,7 +429,7 @@ function lightAndDark(address: string): [string, string] {
 		lightest = lightest.lighten(0.01);
 		darkest = darkest.darken(0.01);
 	}
-	if (parseInt(utils.getAddress(address).slice(8, 10), 16) % 2 == 0) {
+	if (parseInt(getAddress(address).slice(8, 10), 16) % 2 == 0) {
 		return [lightest.hex(), darkest.hex()];
 	}
 	return [darkest.hex(), lightest.hex()];
@@ -488,13 +497,13 @@ function generateSafeDiagram(
 function getNames(scdk: SafeCDKit, address: string): string[] {
 	let names = [];
 	for (const eoa of scdk.state.eoas) {
-		if (utils.getAddress(eoa.entity.address) === utils.getAddress(address)) {
+		if (getAddress(eoa.entity.address) === getAddress(address)) {
 			names.push(eoa.entity.name);
 		}
 	}
 
 	for (const safeConfig of scdk.state.safes) {
-		if (utils.getAddress(safeConfig.entity.address) === utils.getAddress(address)) {
+		if (getAddress(safeConfig.entity.address) === getAddress(address)) {
 			names.push(safeConfig.entity.name);
 		}
 	}
