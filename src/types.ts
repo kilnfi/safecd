@@ -110,22 +110,22 @@ export const TransactionSchema = z.object({
 	safeTxGas: z.number(),
 	baseGas: z.number(),
 	gasPrice: z.string(),
-	refundReceiver: z.string().optional(),
+	refundReceiver: z.string().optional().nullable(),
 	nonce: z.number(),
-	executionDate: z.string().optional(),
+	executionDate: z.string().optional().nullable(),
 	submissionDate: z.string(),
 	modified: z.string(),
-	blockNumber: z.number().optional(),
-	transactionHash: z.string().optional(),
+	blockNumber: z.number().optional().nullable(),
+	transactionHash: z.string().optional().nullable(),
 	safeTxHash: z.string(),
-	executor: z.string().optional(),
-	proposer: z.string().nullable(),
+	executor: z.string().optional().nullable(),
+	proposer: z.string().nullable().nullable(),
 	isExecuted: z.boolean(),
-	isSuccessful: z.boolean().optional(),
-	ethGasPrice: z.string().optional(),
-	gasUsed: z.number().optional(),
-	fee: z.string().optional(),
-	origin: z.string().optional(),
+	isSuccessful: z.boolean().optional().nullable(),
+	ethGasPrice: z.string().optional().nullable(),
+	gasUsed: z.number().optional().nullable(),
+	fee: z.string().optional().nullable(),
+	origin: z.string().optional().nullable(),
 	dataDecoded: z.any(),
 	confirmationsRequired: z.number(),
 	confirmations: z
@@ -135,12 +135,13 @@ export const TransactionSchema = z.object({
 				submissionDate: z.string(),
 				transactionHash: z.string().optional().nullable(),
 				signature: z.string(),
-				signatureType: z.string().optional()
+				signatureType: z.string().optional().nullable()
 			})
 		)
-		.optional(),
+		.optional()
+		.nullable(),
 	trusted: z.boolean(),
-	signatures: z.string().optional()
+	signatures: z.string().optional().nullable()
 });
 
 export type GlobalConfig = z.infer<typeof GlobalConfigSchema>;
