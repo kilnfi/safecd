@@ -104,7 +104,7 @@ export const TransactionSchema = z.object({
 	safe: z.string(),
 	to: z.string(),
 	value: z.string(),
-	data: z.string().optional(),
+	data: z.string().optional().nullable(),
 	operation: z.number(),
 	gasToken: z.string(),
 	safeTxGas: z.number(),
@@ -119,7 +119,7 @@ export const TransactionSchema = z.object({
 	transactionHash: z.string().optional(),
 	safeTxHash: z.string(),
 	executor: z.string().optional(),
-	proposer: z.string(),
+	proposer: z.string().nullable(),
 	isExecuted: z.boolean(),
 	isSuccessful: z.boolean().optional(),
 	ethGasPrice: z.string().optional(),
@@ -133,7 +133,7 @@ export const TransactionSchema = z.object({
 			z.object({
 				owner: z.string(),
 				submissionDate: z.string(),
-				transactionHash: z.string().optional(),
+				transactionHash: z.string().optional().nullable(),
 				signature: z.string(),
 				signatureType: z.string().optional()
 			})
