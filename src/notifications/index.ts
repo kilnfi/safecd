@@ -6,12 +6,18 @@ import { yamlToString } from '../utils/yamlToString';
 
 const safeTxLinkByNetwork: { [key: string]: string } = {
 	mainnet: 'https://app.safe.global/transactions/tx?safe=eth:',
-	goerli: 'https://app.safe.global/transactions/tx?safe=gor:'
+	goerli: 'https://app.safe.global/transactions/tx?safe=gor:',
+	polygon: 'https://app.safe.global/transactions/tx?safe=matic:',
+	arbitrum: 'https://app.safe.global/transactions/tx?safe:arb:',
+	bsc: 'https://app.safe.global/transactions/tx?safe=bsc:'
 };
 
 const explorerByNetwork: { [key: string]: string } = {
 	mainnet: 'https://etherscan.io',
-	goerli: 'https://goerli.etherscan.io'
+	goerli: 'https://goerli.etherscan.io',
+	polygon: 'https://polygonscan.com',
+	arbitrum: 'https://arbiscan.io',
+	bsc: 'https://bscscan.com'
 };
 
 function getSafeTxLink(scdk: SafeCDKit, tx: Transaction): string {
