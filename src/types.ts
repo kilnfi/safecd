@@ -50,7 +50,7 @@ export const SafeSchema = AddressSchema.extend({
 	owners: z.array(ethAddressSchema).optional(),
 	delegates: z.array(DelegateSchema).optional(),
 	threshold: z.number().optional(),
-	nonce: z.number().optional(),
+  nonce: z.coerce.number().optional(),
 	version: z.string().optional()
 });
 
