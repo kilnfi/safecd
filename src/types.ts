@@ -50,7 +50,7 @@ export const SafeSchema = AddressSchema.extend({
 	owners: z.array(ethAddressSchema).optional(),
 	delegates: z.array(DelegateSchema).optional(),
 	threshold: z.number().optional(),
-  nonce: z.coerce.number().optional(),
+	nonce: z.coerce.number().optional(),
 	version: z.string().optional()
 });
 
@@ -107,11 +107,11 @@ export const TransactionSchema = z.object({
 	data: z.string().optional().nullable(),
 	operation: z.number(),
 	gasToken: z.string(),
-	safeTxGas: z.number(),
-	baseGas: z.number(),
+	safeTxGas: z.coerce.number().optional(),
+	baseGas: z.coerce.number().optional(),
 	gasPrice: z.string(),
 	refundReceiver: z.string().optional().nullable(),
-	nonce: z.number(),
+	nonce: z.coerce.number().optional(),
 	executionDate: z.string().optional().nullable(),
 	submissionDate: z.string(),
 	modified: z.string(),
