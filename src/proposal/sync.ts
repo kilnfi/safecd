@@ -1,7 +1,8 @@
-import { getAddress, Interface, ParamType } from 'ethers';
+import { Contract, getAddress, Interface, ParamType } from 'ethers';
 import { readFileSync, writeFileSync } from 'fs';
 import { basename, dirname, resolve } from 'path';
 import { promisify } from 'util';
+import safeAbi from '../abis/safe.json';
 import { getSafeKit } from '../safe-api/kit';
 import { ForgeTransaction, Label, Manifest, PopulatedSafe, Proposal, SafeCDKit } from '../types';
 import { whereBin } from '../utils/binExists';
@@ -338,7 +339,20 @@ async function syncProposal(
 
 		let hasProposed = false;
 		const hash = await safeKit.getTransactionHash(safeTx);
-
+		const safeContract = new Contract(safe.address, safeAbi, scdk.provider);
+		const onchainHash = safeContract.getTransactionHash(
+			safeTx.data.to,
+			safeTx.data.value,
+			safeTx.data.data,
+			safeTx.data.operation,
+			safeTx.data.safeTxGas,
+			safeTx.data.baseGas,
+			safeTx.data.gasPrice,
+			safeTx.data.gasToken,
+			safeTx.data.refundReceiver,
+			safeTx.data.nonce
+		);
+		console.log(hash, onchainHash);
 		let childResults: [Proposal, Manifest | null, string, boolean][] = [];
 
 		if (proposalConfig.createChildProposals) {
@@ -625,6 +639,20 @@ ${proposalConfig.description}
 
 			let hasProposed = false;
 			const hash = await safeKit.getTransactionHash(safeTx);
+			const safeContract = new Contract(safe.address, safeAbi, scdk.provider);
+			const onchainHash = safeContract.getTransactionHash(
+				safeTx.data.to,
+				safeTx.data.value,
+				safeTx.data.data,
+				safeTx.data.operation,
+				safeTx.data.safeTxGas,
+				safeTx.data.baseGas,
+				safeTx.data.gasPrice,
+				safeTx.data.gasToken,
+				safeTx.data.refundReceiver,
+				safeTx.data.nonce
+			);
+			console.log(hash, onchainHash);
 			let childResults: [Proposal, Manifest | null, string, boolean][] = [];
 
 			if (proposalConfig.createChildProposals) {
