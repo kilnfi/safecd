@@ -352,7 +352,7 @@ async function syncProposal(
 			safeTx.data.refundReceiver,
 			safeTx.data.nonce
 		);
-		console.log(hash, onchainHash);
+		console.log('api hash vs onchainHash', hash, onchainHash);
 		let childResults: [Proposal, Manifest | null, string, boolean][] = [];
 
 		if (proposalConfig.createChildProposals) {
@@ -652,7 +652,7 @@ ${proposalConfig.description}
 				safeTx.data.refundReceiver,
 				safeTx.data.nonce
 			);
-			console.log(hash, onchainHash);
+			console.log('api hash vs onchainHash', hash, onchainHash);
 			let childResults: [Proposal, Manifest | null, string, boolean][] = [];
 
 			if (proposalConfig.createChildProposals) {
