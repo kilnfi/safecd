@@ -95,6 +95,7 @@ export const ProposalSchema = z.object({
 	nonce: z.string().optional(),
 	arguments: z.any().optional(),
 	safeTxHash: z.string().optional(),
+	messageHash: z.string().optional(),
 	labels: z.array(LabelSchema).optional(),
 	createChildProposals: z.boolean().optional(),
 	notifications: NotificationTrackingSchema.optional()

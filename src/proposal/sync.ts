@@ -403,7 +403,7 @@ async function syncProposal(
 		let hasProposed = false;
 		const hash = await safeKit.getTransactionHash(safeTx);
 		const safeContract = new Contract(safe.address, safeAbi, scdk.provider);
-		const onchainHash = safeContract.getTransactionHash(
+		const onchainHash = await safeContract.getTransactionHash(
 			safeTx.data.to,
 			safeTx.data.value,
 			safeTx.data.data,
@@ -415,6 +415,10 @@ async function syncProposal(
 			safeTx.data.refundReceiver,
 			safeTx.data.nonce
 		);
+		if (hash.toLowerCase() !== onchainHash.toLowerCase()) {
+			throw new Error(`Hash mismatch: computed ${hash} onchain ${onchainHash}`);
+		}
+
 		const safeTxMsgHash = getSafeMsgHash({
 			to: safeTx.data.to,
 			value: safeTx.data.value,
@@ -427,8 +431,6 @@ async function syncProposal(
 			refundReceiver: safeTx.data.refundReceiver,
 			nonce: safeTx.data.nonce
 		});
-		console.log('api hash vs onchainHash', hash, onchainHash);
-		console.log('safeTxMsgHash', safeTxMsgHash);
 		let childResults: [Proposal, Manifest | null, string, boolean][] = [];
 
 		if (proposalConfig.createChildProposals) {
@@ -459,6 +461,9 @@ async function syncProposal(
 \`\`\`solidity
 Safe(${getAddress(safe.address)}).approveHash(${hash})
 \`\`\`
+
+Parent proposal tx hash: ${hash}
+Parent proposal EIP712 message hash: ${safeTxMsgHash}
 
 Parent proposal: ${proposalConfig.title}
 
@@ -544,6 +549,7 @@ ${proposalConfig.description}
 			}
 
 			proposalConfig.safeTxHash = hash;
+			proposalConfig.messageHash = safeTxMsgHash;
 			proposalConfig.nonce = safeTx.data.nonce.toString();
 			if (safe.notifications) {
 				proposalConfig.notifications = {};
@@ -562,7 +568,8 @@ ${proposalConfig.description}
 					safe: safe,
 					raw_proposal: {
 						...proposalConfig,
-						safeTxHash: hash
+						safeTxHash: hash,
+						messageHash: safeTxMsgHash
 					},
 					raw_script: '',
 					raw_command: '',
@@ -716,7 +723,7 @@ ${proposalConfig.description}
 			let hasProposed = false;
 			const hash = await safeKit.getTransactionHash(safeTx);
 			const safeContract = new Contract(safe.address, safeAbi, scdk.provider);
-			const onchainHash = safeContract.getTransactionHash(
+			const onchainHash = await safeContract.getTransactionHash(
 				safeTx.data.to,
 				safeTx.data.value,
 				safeTx.data.data,
@@ -728,6 +735,9 @@ ${proposalConfig.description}
 				safeTx.data.refundReceiver,
 				safeTx.data.nonce
 			);
+			if (hash.toLowerCase() !== onchainHash.toLowerCase()) {
+				throw new Error(`Hash mismatch: computed ${hash} onchain ${onchainHash}`);
+			}
 			const safeTxMsgHash = getSafeMsgHash({
 				to: safeTx.data.to,
 				value: safeTx.data.value,
@@ -740,8 +750,6 @@ ${proposalConfig.description}
 				refundReceiver: safeTx.data.refundReceiver,
 				nonce: safeTx.data.nonce
 			});
-			console.log('api hash vs onchainHash', hash, onchainHash);
-			console.log('safeTxMsgHash', safeTxMsgHash);
 			let childResults: [Proposal, Manifest | null, string, boolean][] = [];
 
 			if (proposalConfig.createChildProposals) {
@@ -772,6 +780,9 @@ ${proposalConfig.description}
 \`\`\`solidity
 Safe(${getAddress(safe.address)}).approveHash(${hash})
 \`\`\`
+
+Parent proposal tx hash: ${hash}
+Parent proposal EIP712 message hash: ${safeTxMsgHash}
 
 Parent proposal: ${proposalConfig.title}
 
@@ -857,6 +868,7 @@ ${proposalConfig.description}
 				}
 
 				proposalConfig.safeTxHash = hash;
+				proposalConfig.messageHash = safeTxMsgHash;
 				proposalConfig.nonce = safeTx.data.nonce.toString();
 				if (safe.notifications) {
 					proposalConfig.notifications = {};
@@ -875,7 +887,8 @@ ${proposalConfig.description}
 						safe: safe,
 						raw_proposal: {
 							...proposalConfig,
-							safeTxHash: hash
+							safeTxHash: hash,
+							messageHash: safeTxMsgHash
 						},
 						raw_script: readFileSync(resolve(context, proposalConfig.proposal), 'utf8'),
 						raw_command: command.replace(scdk.rpcUrl, '***'),

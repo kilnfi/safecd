@@ -196,6 +196,12 @@ ${description || ''}
 ${manifest.raw_proposal?.safeTxHash}
 \`\`\`
 
+### EIP712 Message Hash
+
+\`\`\`solidity
+${manifest.raw_proposal?.messageHash}
+\`\`\`
+
 <details>
 <summary><bold>Expand for full proposal details</bold></summary>
 
