@@ -371,11 +371,12 @@ async function syncProposal(
 			],
 			options: {
 				nonce
-			}
-			// options: {
-			// 	nonce
-			// }
+			},
+			onlyCalls: true
 		});
+		console.log(
+			`crafted transaction: to=${safeTx.data.to}, value=${safeTx.data.value}, data=${safeTx.data.data}, operation=${safeTx.data.operation}`
+		);
 		let estimationRes;
 
 		try {
@@ -678,8 +679,12 @@ ${proposalConfig.description}
 					})),
 					options: {
 						nonce
-					}
+					},
+					onlyCalls: true
 				});
+				console.log(
+					`crafted transaction: to=${safeTx.data.to}, value=${safeTx.data.value}, data=${safeTx.data.data}, operation=${safeTx.data.operation}`
+				);
 			} else {
 				safeTx = await safeKit.createTransaction({
 					transactions: [
@@ -692,8 +697,12 @@ ${proposalConfig.description}
 					],
 					options: {
 						nonce
-					}
+					},
+					onlyCalls: true
 				});
+				console.log(
+					`crafted transaction: to=${safeTx.data.to}, value=${safeTx.data.value}, data=${safeTx.data.data}, operation=${safeTx.data.operation}`
+				);
 			}
 
 			let estimationRes;
