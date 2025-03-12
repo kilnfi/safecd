@@ -2,6 +2,7 @@ import { Block, KnownBlock, MessageAttachment, WebClient } from '@slack/web-api'
 import { formatEther, getAddress, hashMessage, keccak256 } from 'ethers';
 import { State } from '../state';
 import { EOA, PopulatedSafe, Proposal, SafeCDKit, Transaction } from '../types';
+import { getSafeMsgHash } from '../utils/getSafeMsgHash';
 import { yamlToString } from '../utils/yamlToString';
 
 const safeTxLinkByNetwork: { [key: string]: string } = {
@@ -487,6 +488,25 @@ ${getTxDecoding(transaction)}`
 							text: `*Safe Transaction Hash*:\n<${getSafeTxLink(scdk, transaction)}|\`${
 								transaction.safeTxHash
 							}\`>`
+						}
+					},
+					{
+						type: 'section',
+						text: {
+							type: 'mrkdwn',
+							text: `*EIP712 Message Hash*:\n\`${getSafeMsgHash({
+								to: transaction.to,
+								value: transaction.value,
+								data: transaction.data || ('0x' as string),
+								operation: transaction.operation,
+								safeTxGas: parseInt((transaction.safeTxGas || 0).toString()),
+								baseGas: parseInt((transaction.baseGas || 0).toString()),
+								gasPrice: parseInt((transaction.gasPrice || 0).toString()),
+								gasToken: transaction.gasToken,
+								refundReceiver:
+									transaction.refundReceiver || '0x0000000000000000000000000000000000000000',
+								nonce: transaction.nonce || 0
+							})}\``
 						}
 					},
 					...(rejection !== null
